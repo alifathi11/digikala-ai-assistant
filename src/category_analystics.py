@@ -1,61 +1,59 @@
 import pandas as pd
 
 
-def top_complaints(
-    comments_df: pd.DataFrame,
-    products_df: pd.DataFrame,
-    category: str,
-    n_samples: int = 500,
-) -> pd.DataFrame:
-    cat_product_ids = products_df[
-        products_df["category"].str.contains(category, case=False, na=False)
-    ]["id"].tolist()
+def low_recommendation_products(comments_df, products_df, min_comments=10, top_n=20):
+    grouped = comments_df.groupby("product_id").agg(
+        total_comments=("recommendation_status", "count"),
+        rec_rate=("recommendation_status", lambda x: (x == "recommended").mean()),
+    ).reset_index()
 
-    cat_comments = comments_df[
-        (comments_df["product_id"].isin(cat_product_ids)) &
-        (comments_df["recommendation_status"] == "not_recommended") &
-        (comments_df["body"].str.len() >= 15)
+    grouped = grouped[grouped["total_comments"] >= min_comments]
+    grouped = grouped.sort_values("rec_rate")
+
+    merged = grouped.merge(
+        products_df[["id", "title", "brand", "category", "price"]],
+        left_on="product_id",
+        right_on="id",
+        how="left",
+    )
+
+    return merged[["product_id", "title", "brand", "category", "total_comments", "rec_rate"]].head(top_n)
+
+
+def brand_comparison(comments_df, products_df, category):
+    cat_products = products_df[products_df["category"] == category]
+
+    merged = comments_df.merge(
+        cat_products[["id", "brand"]],
+        left_on="product_id",
+        right_on="id",
+        how="inner",
+    )
+
+    stats = merged.groupby("brand").agg(
+        avg_rate=("rate", "mean"),
+        total_comments=("rate", "count"),
+        rec_rate=("recommendation_status", lambda x: (x == "recommended").mean()),
+    ).reset_index()
+
+    return stats.sort_values("total_comments", ascending=False)
+
+
+def top_complaints(comments_df, products_df, category, min_length=15, n=20):
+    cat_products = products_df[products_df["category"] == category]
+
+    merged = comments_df.merge(
+        cat_products[["id", "title", "brand"]],
+        left_on="product_id",
+        right_on="id",
+        how="inner",
+    )
+
+    complaints = merged[
+        (merged["recommendation_status"] == "not_recommended")
+        & (merged["body"].str.len() >= min_length)
     ]
-    return cat_comments.sample(min(n_samples, len(cat_comments)), random_state=42)
 
-
-def low_recommendation_products(
-    comments_df: pd.DataFrame,
-    products_df: pd.DataFrame,
-    min_comment_count: int = 10,
-) -> pd.DataFrame:
-    stats = (
-        comments_df.groupby("product_id")
-        .agg(
-            total=("id", "count"),
-            not_recommended=("recommendation_status", lambda x: (x == "not_recommended").sum()),
-        )
-        .reset_index()
+    return complaints[["product_id", "title", "brand", "body", "rate"]].sample(
+        n=min(n, len(complaints))
     )
-    stats["not_rec_ratio"] = stats["not_recommended"] / stats["total"]
-    stats = stats[stats["total"] >= min_comment_count]
-    merged = stats.merge(products_df[["id", "title", "category", "brand"]], left_on="product_id", right_on="id")
-    return merged.sort_values("not_rec_ratio", ascending=False)
-
-
-def brand_comparison(
-    comments_df: pd.DataFrame,
-    products_df: pd.DataFrame,
-    category: str,
-) -> pd.DataFrame:
-    cat_products = products_df[
-        products_df["category"].str.contains(category, case=False, na=False)
-    ][["id", "brand"]]
-
-    merged = comments_df.merge(cat_products, left_on="product_id", right_on="id")
-    result = (
-        merged.groupby("brand")
-        .agg(
-            avg_rate=("rate", "mean"),
-            total_comments=("id", "count"),
-            recommended=("recommendation_status", lambda x: (x == "recommended").sum()),
-        )
-        .reset_index()
-    )
-    result["rec_ratio"] = result["recommended"] / result["total_comments"]
-    return result.sort_values("avg_rate", ascending=False)
