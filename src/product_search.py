@@ -2,12 +2,12 @@ import faiss
 import numpy as np
 import pandas as pd
 from sentence_transformers import SentenceTransformer
-from src.config import MODEL_NAME, TOP_K
+from src.config import EMBEDDING_MODEL_NAME, TOP_K
 
 
 class ProductSearcher:
     def __init__(self, products_df: pd.DataFrame):
-        self.model = SentenceTransformer(MODEL_NAME)
+        self.model = SentenceTransformer(EMBEDDING_MODEL_NAME)
         self.products_df = products_df.drop_duplicates(subset="id").reset_index(drop=True)
         self._build_index()
 
