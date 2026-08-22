@@ -13,7 +13,7 @@ COMMENTS_CSV = DATA_RAW_DIR / "digikala-comments.csv"
 PROCESSED_COMMENTS_CSV = DATA_PROCESSED_DIR / "comments_clean.csv"
 
 EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-EMBEDDING_BATCH_SIZE = 64
+EMBEDDING_BATCH_SIZE = 256
 TOP_K = 5
 
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
