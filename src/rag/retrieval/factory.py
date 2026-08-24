@@ -1,6 +1,6 @@
 from .tfidf import TFIDFRetriever
 from .bm25 import BM25Retriever
-
+from .embedding import EmbeddingRetriever
 
 class RetrieverFactory:
 
@@ -8,6 +8,7 @@ class RetrieverFactory:
     def create(
         retriever_type: str,
         documents,
+        embedding_model=None,
         **kwargs
     ):
 
@@ -30,7 +31,22 @@ class RetrieverFactory:
             )
 
 
+        elif retriever_type == "embedding":
+
+            if embedding_model is None:
+                raise ValueError(
+                    "Embedding model is required"
+                )
+
+
+            return EmbeddingRetriever(
+                documents,
+                embedding_model,
+                **kwargs
+            )
+
+
         else:
             raise ValueError(
-                f"Unknown retriever type: {retriever_type}"
+                f"Unknown retriever: {retriever_type}"
             )
