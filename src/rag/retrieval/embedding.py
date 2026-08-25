@@ -1,10 +1,8 @@
 import pandas as pd
-import numpy as np
-
-from sklearn.metrics.pairwise import cosine_similarity
 
 from .base import BaseRetriever
 from ..embedding.base import BaseEmbedding
+from ..vector_store.faiss import FAISSVectorStore
 
 
 class EmbeddingRetriever(BaseRetriever):
@@ -25,6 +23,8 @@ class EmbeddingRetriever(BaseRetriever):
         self.embedding_model = embedding_model
         self.text_column = text_column
 
+        self.vector_store = FAISSVectorStore()
+
         self._build_index()
 
 
@@ -37,8 +37,13 @@ class EmbeddingRetriever(BaseRetriever):
             .tolist()
         )
 
-        self.document_embeddings = (
+        embeddings = (
             self.embedding_model.encode(texts)
+        )
+
+        self.vector_store.build(
+            embeddings,
+            self.documents
         )
 
 
@@ -54,23 +59,7 @@ class EmbeddingRetriever(BaseRetriever):
             )
         )
 
-
-        scores = cosine_similarity(
+        return self.vector_store.search(
             query_embedding,
-            self.document_embeddings
-        )[0]
-
-
-        results = self.documents.copy()
-
-        results["score"] = scores
-
-
-        return (
-            results
-            .sort_values(
-                "score",
-                ascending=False
-            )
-            .head(top_k)
+            top_k
         )

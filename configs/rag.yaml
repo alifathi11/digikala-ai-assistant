@@ -1,6 +1,11 @@
-retriever:
-  type: embedding
+retrieval:
+  type: hybrid
+
   top_k: 5
+
+  hybrid:
+    bm25_weight: 0.3
+    embedding_weight: 0.7
 
 embedding:
   provider: sentence_transformer

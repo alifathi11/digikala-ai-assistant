@@ -1,6 +1,7 @@
 from .tfidf import TFIDFRetriever
 from .bm25 import BM25Retriever
 from .embedding import EmbeddingRetriever
+from .hybrid import HybridRetriever
 
 class RetrieverFactory:
 
@@ -45,6 +46,20 @@ class RetrieverFactory:
                 **kwargs
             )
 
+        elif retriever_type == "hybrid":
+
+            return HybridRetriever(
+                bm25_retriever=kwargs["bm25_retriever"],
+                embedding_retriever=kwargs["embedding_retriever"],
+                bm25_weight=kwargs.get(
+                    "bm25_weight",
+                    0.3
+                ),
+                embedding_weight=kwargs.get(
+                    "embedding_weight",
+                    0.7
+                )
+            )
 
         else:
             raise ValueError(
