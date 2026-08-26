@@ -1,52 +1,55 @@
 def validate_result(
     result,
-    valid_ids
+    valid_ids,
+    expected_queries=3
 ):
-
-    print("TYPE:", type(result))
-
     if not isinstance(result, dict):
-        print("FAIL: not dict")
         return False
 
+    queries = result.get("queries")
 
-    if "query" not in result:
-        print("FAIL: no query")
+    if not isinstance(queries, list):
         return False
 
-
-    if "relevant_ids" not in result:
-        print("FAIL: no relevant_ids")
+    if len(queries) != expected_queries:
         return False
 
+    valid_ids = set(valid_ids)
+    seen_queries = set()
 
-    ids = result["relevant_ids"]
+    for item in queries:
+        if not isinstance(item, dict):
+            return False
 
-    print("IDS:", ids)
-    print("VALID:", valid_ids)
+        query = item.get("query")
+        ids = item.get("relevant_ids")
 
+        if not isinstance(query, str):
+            return False
 
-    if not isinstance(ids, list):
-        print("FAIL: ids not list")
-        return False
+        query = query.strip()
 
+        if not query:
+            return False
 
-    if len(ids) == 0:
-        print("FAIL: empty ids")
-        return False
+        if query in seen_queries:
+            return False
 
+        seen_queries.add(query)
 
-    subset = set(ids).issubset(
-        set(valid_ids)
-    )
+        if not isinstance(ids, list):
+            return False
 
-    print("SUBSET:", subset)
+        if not 1 <= len(ids) <= 3:
+            return False
 
+        if len(ids) != len(set(ids)):
+            return False
 
-    if not subset:
-        print("FAIL: invalid ids")
-        return False
+        if not all(isinstance(x, int) for x in ids):
+            return False
 
+        if not set(ids).issubset(valid_ids):
+            return False
 
-    print("PASS")
     return True

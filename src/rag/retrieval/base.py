@@ -14,7 +14,6 @@ class BaseRetriever(ABC):
         self,
         query
     ):
-
         if self.processor:
             return self.processor.process(query)
 
@@ -25,6 +24,12 @@ class BaseRetriever(ABC):
     def retrieve(
         self,
         query,
-        top_k=5
+        top_k=5,
+        candidate_ids=None
     ):
+        """Retrieve documents.
+
+        candidate_ids is optional and contains original document/comment IDs.
+        When supplied, ranking is restricted to that candidate pool.
+        """
         pass

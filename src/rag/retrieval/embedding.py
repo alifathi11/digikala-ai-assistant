@@ -1,7 +1,4 @@
-import pandas as pd
-
 from .base import BaseRetriever
-from ..embedding.base import BaseEmbedding
 from ..vector_store.faiss import FAISSVectorStore
 
 
@@ -9,14 +6,35 @@ class EmbeddingRetriever(BaseRetriever):
 
     def __init__(
         self,
-        documents,
-        embedding_model,
+        documents=None,
+        embedding_model=None,
         processor=None,
-        text_column="search_text"
+        text_column="search_text",
+        vector_store=None
     ):
-        super().__init__(
-            processor
-        )
+        super().__init__(processor)
+
+        if embedding_model is None:
+            raise ValueError(
+                "embedding_model is required"
+            )
+
+        self.embedding_model = embedding_model
+        self.text_column = text_column
+
+        if vector_store is not None:
+            self.vector_store = vector_store
+            self.documents = (
+                vector_store.documents
+                .reset_index(drop=True)
+                .copy()
+            )
+            return
+
+        if documents is None:
+            raise ValueError(
+                "documents or vector_store is required"
+            )
 
         self.documents = (
             documents
@@ -24,16 +42,11 @@ class EmbeddingRetriever(BaseRetriever):
             .copy()
         )
 
-        self.embedding_model = embedding_model
-        self.text_column = text_column
-
         self.vector_store = FAISSVectorStore()
-
         self._build_index()
 
 
     def _build_index(self):
-
         texts = (
             self.documents[self.text_column]
             .fillna("")
@@ -41,8 +54,8 @@ class EmbeddingRetriever(BaseRetriever):
             .tolist()
         )
 
-        embeddings = (
-            self.embedding_model.encode(texts)
+        embeddings = self.embedding_model.encode(
+            texts
         )
 
         self.vector_store.build(
@@ -54,9 +67,9 @@ class EmbeddingRetriever(BaseRetriever):
     def retrieve(
         self,
         query: str,
-        top_k: int = 5
+        top_k: int = 5,
+        candidate_ids=None
     ):
-
         query = self.process_query(query)
 
         query_embedding = (
@@ -67,5 +80,6 @@ class EmbeddingRetriever(BaseRetriever):
 
         return self.vector_store.search(
             query_embedding,
-            top_k
+            top_k=top_k,
+            candidate_ids=candidate_ids
         )
