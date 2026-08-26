@@ -388,6 +388,10 @@ class GroundedQAPipeline:
             )
         )
 
+        generation_attempts = [
+            generation
+        ]
+
         payload = generation[
             "payload"
         ]
@@ -433,6 +437,10 @@ class GroundedQAPipeline:
                         repair_prompt
                     ),
                 )
+            )
+
+            generation_attempts.append(
+                repair_generation
             )
 
             repaired_payload = (
@@ -505,6 +513,68 @@ class GroundedQAPipeline:
             )
         )
 
+        generation_latency_ms = sum(
+            float(
+                attempt[
+                    "latency_ms"
+                ]
+            )
+            for attempt
+            in generation_attempts
+        )
+
+        prompt_tokens = sum(
+            int(
+                attempt[
+                    "prompt_tokens"
+                ]
+            )
+            for attempt
+            in generation_attempts
+        )
+
+        completion_tokens = sum(
+            int(
+                attempt[
+                    "completion_tokens"
+                ]
+            )
+            for attempt
+            in generation_attempts
+        )
+
+        total_tokens = sum(
+            int(
+                attempt[
+                    "total_tokens"
+                ]
+            )
+            for attempt
+            in generation_attempts
+        )
+
+        attempt_costs = [
+            attempt[
+                "estimated_cost_usd"
+            ]
+            for attempt
+            in generation_attempts
+        ]
+
+        estimated_cost_usd = (
+            sum(
+                float(cost)
+                for cost
+                in attempt_costs
+            )
+            if all(
+                cost is not None
+                for cost
+                in attempt_costs
+            )
+            else None
+        )
+
         total_latency_ms = (
             time.perf_counter()
             - total_start
@@ -538,9 +608,6 @@ class GroundedQAPipeline:
             "citation_valid": (
                 citation_valid
             ),
-            "grounding_valid": (
-                citation_valid
-            ),
             "citation_repaired": (
                 citation_repaired
             ),
@@ -570,9 +637,7 @@ class GroundedQAPipeline:
                 ),
                 "generation_latency_ms": (
                     float(
-                        generation[
-                            "latency_ms"
-                        ]
+                        generation_latency_ms
                     )
                 ),
                 "total_latency_ms": (
@@ -584,24 +649,16 @@ class GroundedQAPipeline:
                     "model"
                 ],
                 "prompt_tokens": (
-                    generation[
-                        "prompt_tokens"
-                    ]
+                    prompt_tokens
                 ),
                 "completion_tokens": (
-                    generation[
-                        "completion_tokens"
-                    ]
+                    completion_tokens
                 ),
                 "total_tokens": (
-                    generation[
-                        "total_tokens"
-                    ]
+                    total_tokens
                 ),
                 "estimated_cost_usd": (
-                    generation[
-                        "estimated_cost_usd"
-                    ]
+                    estimated_cost_usd
                 ),
                 "citation_retry_count": (
                     citation_retry_count

@@ -1,26 +1,39 @@
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-sys.path.append(
-    str(PROJECT_ROOT)
-)
-
 import json
 import os
+import sys
+from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
 
-from src.rag.evaluation.openai_generator import OpenAIGenerator
-from src.rag.evaluation.prompt import build_eval_prompt
-from src.rag.evaluation.validator import validate_result
-from src.rag.utils.text import build_comment_text
+PROJECT_ROOT = Path(
+    __file__
+).resolve().parents[1]
+
+if str(
+    PROJECT_ROOT
+) not in sys.path:
+    sys.path.append(
+        str(PROJECT_ROOT)
+    )
+
+from src.rag.config import (
+    load_config,
+)
+from src.rag.evaluation.dataset_generation import (
+    EVAL_DATASET_SYSTEM_PROMPT,
+    build_eval_prompt,
+    validate_generated_queries,
+)
+from src.rag.generation import (
+    OpenAIJSONGenerator,
+)
+from src.rag.utils.text import (
+    build_comment_text,
+)
 
 
 load_dotenv()
-
 
 COMMENTS_PATH = (
     PROJECT_ROOT
@@ -43,34 +56,34 @@ OUTPUT_PATH = (
     / "retrieval_queries.json"
 )
 
-
 NUM_PRODUCTS = 50
 QUERIES_PER_PRODUCT = 3
 COMMENTS_PER_PRODUCT = 20
 RANDOM_STATE = 42
 
 
-def save_dataset(dataset):
+def save_dataset(
+    dataset
+):
     OUTPUT_PATH.parent.mkdir(
         parents=True,
-        exist_ok=True
+        exist_ok=True,
     )
 
     with open(
         OUTPUT_PATH,
         "w",
-        encoding="utf-8"
-    ) as f:
+        encoding="utf-8",
+    ) as file:
         json.dump(
             dataset,
-            f,
+            file,
             ensure_ascii=False,
-            indent=2
+            indent=2,
         )
 
 
 def main():
-
     comments = pd.read_parquet(
         COMMENTS_PATH
     )
@@ -79,15 +92,13 @@ def main():
         PRODUCTS_PATH
     )
 
-    # Use the same text fields that are indexed:
-    # title + body + advantages + disadvantages.
     comments = comments.copy()
 
     comments["eval_text"] = (
         comments
         .apply(
             build_comment_text,
-            axis=1
+            axis=1,
         )
         .fillna("")
         .astype(str)
@@ -95,14 +106,21 @@ def main():
     )
 
     comments = comments[
-        comments["eval_text"].str.len() > 0
+        comments[
+            "eval_text"
+        ].str.len()
+        > 0
     ].copy()
 
     comment_counts = (
         comments
-        .groupby("product_id")
+        .groupby(
+            "product_id"
+        )
         .size()
-        .rename("comment_count")
+        .rename(
+            "comment_count"
+        )
     )
 
     eligible_products = (
@@ -115,51 +133,70 @@ def main():
         .rename(
             columns={
                 "id": "product_id",
-                "title_fa": "product_title",
+                "title_fa": (
+                    "product_title"
+                ),
             }
         )
         .merge(
             comment_counts,
             on="product_id",
-            how="inner"
+            how="inner",
         )
     )
 
-    eligible_products = eligible_products[
-        eligible_products["comment_count"]
-        >= COMMENTS_PER_PRODUCT
-    ].copy()
-
-    # Shuffle eligible products instead of taking the 50 most-commented
-    # products, which can strongly bias the benchmark toward one category.
     eligible_products = (
-        eligible_products
+        eligible_products[
+            eligible_products[
+                "comment_count"
+            ]
+            >= COMMENTS_PER_PRODUCT
+        ]
         .sample(
             frac=1.0,
-            random_state=RANDOM_STATE
+            random_state=(
+                RANDOM_STATE
+            ),
         )
-        .reset_index(drop=True)
+        .reset_index(
+            drop=True
+        )
     )
 
-    generator = OpenAIGenerator(
-        api_key=os.getenv(
-            "METIS_API_KEY"
-        ),
-        base_url=os.getenv(
-            "METIS_BASE_URL"
-        ),
-        model="gpt-5.6-terra"
+    qa_config = load_config(
+        PROJECT_ROOT
+        / "configs"
+        / "qa.yaml"
+    )
+
+    generator = (
+        OpenAIJSONGenerator(
+            api_key=os.getenv(
+                "METIS_API_KEY"
+            ),
+            base_url=os.getenv(
+                "METIS_BASE_URL"
+            ),
+            model=qa_config[
+                "generation"
+            ]["model"],
+        )
     )
 
     dataset = []
     successful_products = 0
     api_calls = 0
 
-    for row in eligible_products.itertuples(
-        index=False
+    for row in (
+        eligible_products
+        .itertuples(
+            index=False
+        )
     ):
-
-        if successful_products >= NUM_PRODUCTS:
+        if (
+            successful_products
+            >= NUM_PRODUCTS
+        ):
             break
 
         product_id = int(
@@ -172,86 +209,111 @@ def main():
 
         product_comments = (
             comments[
-                comments["product_id"]
+                comments[
+                    "product_id"
+                ]
                 == product_id
             ]
             .sample(
-                n=COMMENTS_PER_PRODUCT,
+                n=(
+                    COMMENTS_PER_PRODUCT
+                ),
                 random_state=(
                     RANDOM_STATE
                     + product_id
-                )
+                ),
             )
             .copy()
         )
 
         comment_list = [
             {
-                "id": int(r.id),
-                "text": str(r.eval_text),
+                "id": int(
+                    record.id
+                ),
+                "text": str(
+                    record.eval_text
+                ),
             }
-            for r in product_comments.itertuples(
+            for record
+            in product_comments
+            .itertuples(
                 index=False
             )
         ]
 
         candidate_ids = [
-            c["id"]
-            for c in comment_list
+            comment["id"]
+            for comment
+            in comment_list
         ]
 
-        prompt = build_eval_prompt(
-            product_title,
-            comment_list
+        user_prompt = (
+            build_eval_prompt(
+                product_title,
+                comment_list,
+            )
         )
 
         try:
             api_calls += 1
 
-            result = generator.generate(
-                prompt
+            generation = (
+                generator.generate(
+                    system_prompt=(
+                        EVAL_DATASET_SYSTEM_PROMPT
+                    ),
+                    user_prompt=(
+                        user_prompt
+                    ),
+                )
             )
+
+            result = generation[
+                "payload"
+            ]
 
         except Exception as exc:
             print(
-                f"API failure for product "
-                f"{product_id}: {exc}"
+                "API failure for "
+                f"product {product_id}: "
+                f"{exc}"
             )
             continue
 
-        if result is None:
+        if not (
+            validate_generated_queries(
+                result,
+                candidate_ids,
+                expected_queries=(
+                    QUERIES_PER_PRODUCT
+                ),
+            )
+        ):
             print(
-                f"Empty result for product "
-                f"{product_id}"
+                "Invalid result for "
+                f"product {product_id}: "
+                f"{result}"
             )
             continue
 
-        is_valid = validate_result(
-            result,
-            candidate_ids,
-            expected_queries=(
-                QUERIES_PER_PRODUCT
-            )
-        )
-
-        if not is_valid:
-            print(
-                f"Invalid result for product "
-                f"{product_id}: {result}"
-            )
-            continue
-
-        for query_item in result["queries"]:
-
+        for query_item in (
+            result[
+                "queries"
+            ]
+        ):
             dataset.append(
                 {
-                    "product_id": product_id,
+                    "product_id": (
+                        product_id
+                    ),
                     "product_title": (
                         product_title
                     ),
                     "query": (
-                        query_item["query"]
-                        .strip()
+                        query_item[
+                            "query"
+                        ].strip()
                     ),
                     "candidate_ids": (
                         candidate_ids
@@ -266,8 +328,6 @@ def main():
 
         successful_products += 1
 
-        # Checkpoint after every successful product so an interruption
-        # does not lose previous API generations.
         save_dataset(
             dataset
         )
@@ -291,20 +351,27 @@ def main():
 
     print()
     print(
-        f"Saved {len(dataset)} samples "
-        f"from {successful_products} products"
+        f"Saved {len(dataset)} "
+        "samples from "
+        f"{successful_products} "
+        "products"
     )
     print(
-        f"Expected samples: "
+        "Expected samples: "
         f"{expected_samples}"
     )
     print(
-        f"API calls: {api_calls}"
+        f"API calls: "
+        f"{api_calls}"
     )
 
-    if len(dataset) != expected_samples:
+    if (
+        len(dataset)
+        != expected_samples
+    ):
         print(
-            "WARNING: benchmark is incomplete."
+            "WARNING: benchmark "
+            "is incomplete."
         )
 
 

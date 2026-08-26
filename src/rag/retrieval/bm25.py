@@ -528,6 +528,7 @@ class BM25Retriever(BaseRetriever):
     def load(
         self,
         path,
+        documents=None,
     ):
         path = Path(path)
 
@@ -563,12 +564,53 @@ class BM25Retriever(BaseRetriever):
 
         self.index_path = path
 
-        self.documents = (
-            pd.read_parquet(
-                metadata_path
+        if documents is None:
+            self.documents = (
+                pd.read_parquet(
+                    metadata_path
+                )
+                .reset_index(drop=True)
             )
-            .reset_index(drop=True)
-        )
+        else:
+            self.documents = (
+                documents
+                .reset_index(drop=True)
+            )
+
+            manifest_path = (
+                path
+                / self.MANIFEST_FILE
+            )
+
+            if manifest_path.exists():
+                with open(
+                    manifest_path,
+                    encoding="utf-8",
+                ) as file:
+                    manifest = json.load(
+                        file
+                    )
+
+                expected = int(
+                    manifest.get(
+                        "num_documents",
+                        len(
+                            self.documents
+                        ),
+                    )
+                )
+
+                if (
+                    len(
+                        self.documents
+                    )
+                    != expected
+                ):
+                    raise ValueError(
+                        "Shared metadata row count "
+                        "does not match the Tantivy "
+                        "index manifest."
+                    )
 
         return self
 

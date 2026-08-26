@@ -1,0 +1,13 @@
+pandas>=2.2
+numpy>=1.26
+pyarrow>=17
+PyYAML>=6.0
+python-dotenv>=1.0
+jdatetime>=5.2
+matplotlib>=3.8
+sentence-transformers>=3.0
+torch>=2.2
+faiss-cpu>=1.8
+tantivy==0.26.0
+openai>=1.50
+streamlit>=1.55,<2

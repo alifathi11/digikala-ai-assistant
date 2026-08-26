@@ -2,10 +2,9 @@ from .base import BaseGenerator
 from .prompt import (
     SYSTEM_PROMPT,
     build_qa_prompt,
+    build_citation_repair_prompt,
 )
-from .validation import (
-    validate_grounded_response,
-)
+from .validation import validate_grounded_response
 
 
 def __getattr__(name):
@@ -21,5 +20,6 @@ __all__ = [
     "OpenAIJSONGenerator",
     "SYSTEM_PROMPT",
     "build_qa_prompt",
+    "build_citation_repair_prompt",
     "validate_grounded_response",
 ]
