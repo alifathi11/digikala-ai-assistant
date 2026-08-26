@@ -11,6 +11,9 @@ from src.app.navigation import Feature
 from src.app.pages.qa import (
     render as render_qa,
 )
+from src.app.pages.product_search import (
+    render as render_product_search,
+)
 from src.app.theme import (
     APP_CSS,
 )
@@ -32,7 +35,8 @@ FEATURES = [
         key="product_search",
         label="جست‌وجوی محصول",
         icon="🔎",
-        enabled=False,
+        enabled=True,
+        renderer=render_product_search,
     ),
     Feature(
         key="comparison",
@@ -175,7 +179,7 @@ with st.sidebar:
         """
         <div class="sidebar-status">
             <span class="status-dot"></span>
-            <span>بازیابی ترکیبی مبتنی بر FAISS و BM25</span>
+            <span>FAISS + BM25 + بازرتبه‌بندی هوشمند</span>
         </div>
         """,
         unsafe_allow_html=True,

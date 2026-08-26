@@ -1,0 +1,42 @@
+product_search:
+  metadata:
+    # Rank-based fusion avoids treating a weak dense top-1 as an absolute
+    # relevance score.
+    bm25_weight: 0.50
+    embedding_weight: 0.50
+    candidate_multiplier: 4
+
+    # Query-time lexical grounding over title / brand / category metadata.
+    lexical_weight: 0.30
+    rrf_k: 60
+
+    # Bounded exact-brand boost.
+    brand_boost: 0.20
+
+    # Fail loudly if Product FAISS and Tantivy metadata came from different
+    # canonical product snapshots.
+    validate_index_alignment: true
+
+  candidates:
+    metadata_products: 50
+    # Legacy global review budget retained for API compatibility.
+    review_comments: 250
+    # New: retrieve evidence separately inside each shortlisted product.
+    review_comments_per_product: 2
+    reranker_products: 12
+
+  reranker:
+    enabled: true
+    # Metadata generates the candidate pool; LLM performs the actual
+    # semantic/product-type reranking.
+    metadata_weight: 0.30
+    llm_weight: 0.70
+    max_reviews_per_product: 2
+    max_review_chars: 700
+
+indexing:
+  dense_chunk_size: 10000
+  dense_encode_batch_size: 128
+  sparse_batch_size: 50000
+  sparse_writer_heap_size: 128000000
+  sparse_num_threads: 1
