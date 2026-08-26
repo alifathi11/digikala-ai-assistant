@@ -42,8 +42,12 @@ class ProductMetadataRetriever:
 
     LEXICAL_FIELDS = (
         "title_fa",
-        "Brand",
         "Category1",
+        "Category2",
+        "sub_category",
+    )
+
+    CATEGORY_FIELDS = (
         "Category2",
         "sub_category",
     )
@@ -394,26 +398,106 @@ class ProductMetadataRetriever:
         )
 
 
+    @staticmethod
+    def _dice_overlap(
+        left_tokens,
+        right_tokens,
+    ):
+        left = set(
+            left_tokens
+        )
+        right = set(
+            right_tokens
+        )
+
+        if (
+            not left
+            or not right
+        ):
+            return 0.0
+
+        return float(
+            2.0
+            * len(
+                left
+                & right
+            )
+            / (
+                len(
+                    left
+                )
+                + len(
+                    right
+                )
+            )
+        )
+
+
+    def _field_tokens(
+        self,
+        row,
+        fields,
+    ):
+        tokens = []
+
+        for field in fields:
+            value = getattr(
+                row,
+                field,
+                "",
+            )
+
+            try:
+                missing = pd.isna(
+                    value
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                missing = False
+
+            if (
+                value is None
+                or missing
+            ):
+                continue
+
+            value = str(
+                value
+            ).strip()
+
+            if (
+                not value
+                or value.lower()
+                == "unknown"
+            ):
+                continue
+
+            tokens.extend(
+                self._tokens(
+                    value
+                )
+            )
+
+        return tokens
+
+
     def _lexical_match_scores(
         self,
         query,
         candidate_metadata,
     ):
         """
-        Query coverage in actual product metadata.
+        Product-type-aware lexical grounding.
 
-        token_overlap:
-            fraction of meaningful query tokens found in product metadata
+        lexical_score =
+            45% query-token coverage in title/category metadata
+            35% adjacent query bigrams matched inside title_fa
+            20% category compatibility (Category2/sub_category)
 
-        bigram_overlap:
-            fraction of adjacent meaningful query-token pairs found in the
-            candidate metadata. This strongly rewards phrases such as:
-              "ضد آفتاب"
-              "پوست چرب"
-              "ضد ریزش"
-
-        lexical_score:
-            65% token coverage + 35% bigram coverage
+        Brand is excluded here because exact-brand intent already has a
+        separate bounded boost.
         """
         query_tokens = self._tokens(
             query
@@ -426,9 +510,9 @@ class ProductMetadataRetriever:
                 ),
                 dtype=float,
             )
-
             return (
                 zeros,
+                zeros.copy(),
                 zeros.copy(),
                 zeros.copy(),
             )
@@ -447,109 +531,88 @@ class ProductMetadataRetriever:
         )
 
         token_scores = []
-        bigram_scores = []
+        title_bigram_scores = []
+        category_scores = []
         lexical_scores = []
 
-        for row in (
-            candidate_metadata
-            .itertuples(
-                index=False
-            )
+        for row in candidate_metadata.itertuples(
+            index=False
         ):
-            parts = []
-
-            for field in (
-                self.LEXICAL_FIELDS
-            ):
-                value = getattr(
+            metadata_tokens = (
+                self._field_tokens(
                     row,
-                    field,
-                    "",
-                )
-
-                try:
-                    missing = pd.isna(
-                        value
-                    )
-                except (
-                    TypeError,
-                    ValueError,
-                ):
-                    missing = False
-
-                if (
-                    value is None
-                    or missing
-                ):
-                    continue
-
-                value = str(
-                    value
-                ).strip()
-
-                if (
-                    not value
-                    or value.lower()
-                    == "unknown"
-                ):
-                    continue
-
-                parts.append(
-                    value
-                )
-
-            document_tokens = (
-                self._tokens(
-                    " ".join(
-                        parts
-                    )
+                    self.LEXICAL_FIELDS,
                 )
             )
-
-            document_token_set = set(
-                document_tokens
+            metadata_token_set = set(
+                metadata_tokens
             )
 
             token_overlap = (
                 len(
                     query_token_set
-                    & document_token_set
+                    & metadata_token_set
                 )
                 / len(
                     query_token_set
                 )
             )
 
+            title_tokens = (
+                self._field_tokens(
+                    row,
+                    (
+                        "title_fa",
+                    ),
+                )
+            )
+
             if query_bigrams:
-                document_bigrams = set(
+                title_bigrams = set(
                     zip(
-                        document_tokens,
-                        document_tokens[
+                        title_tokens,
+                        title_tokens[
                             1:
                         ],
                     )
                 )
-
-                bigram_overlap = (
+                title_bigram_overlap = (
                     len(
                         query_bigrams
-                        & document_bigrams
+                        & title_bigrams
                     )
                     / len(
                         query_bigrams
                     )
                 )
             else:
-                bigram_overlap = (
+                title_bigram_overlap = (
                     token_overlap
                 )
 
+            category_tokens = (
+                self._field_tokens(
+                    row,
+                    self.CATEGORY_FIELDS,
+                )
+            )
+
+            category_score = (
+                self._dice_overlap(
+                    query_tokens,
+                    category_tokens,
+                )
+            )
+
             lexical = (
-                0.65
+                0.45
                 * token_overlap
                 +
                 0.35
-                * bigram_overlap
+                * title_bigram_overlap
+                +
+                0.20
+                * category_score
             )
 
             token_scores.append(
@@ -557,13 +620,16 @@ class ProductMetadataRetriever:
                     token_overlap
                 )
             )
-
-            bigram_scores.append(
+            title_bigram_scores.append(
                 float(
-                    bigram_overlap
+                    title_bigram_overlap
                 )
             )
-
+            category_scores.append(
+                float(
+                    category_score
+                )
+            )
             lexical_scores.append(
                 float(
                     lexical
@@ -576,7 +642,11 @@ class ProductMetadataRetriever:
                 dtype=float,
             ),
             np.asarray(
-                bigram_scores,
+                title_bigram_scores,
+                dtype=float,
+            ),
+            np.asarray(
+                category_scores,
                 dtype=float,
             ),
             np.asarray(
@@ -805,7 +875,8 @@ class ProductMetadataRetriever:
 
         (
             token_overlap,
-            bigram_overlap,
+            title_bigram_overlap,
+            category_score,
             lexical_score,
         ) = (
             self._lexical_match_scores(
@@ -819,8 +890,23 @@ class ProductMetadataRetriever:
         ] = token_overlap
 
         merged[
+            "title_bigram_overlap"
+        ] = (
+            title_bigram_overlap
+        )
+
+        # Backward-compatible alias.
+        merged[
             "bigram_overlap"
-        ] = bigram_overlap
+        ] = (
+            title_bigram_overlap
+        )
+
+        merged[
+            "category_score"
+        ] = (
+            category_score
+        )
 
         merged[
             "lexical_score"
@@ -918,7 +1004,9 @@ class ProductMetadataRetriever:
             "rrf_score",
             "lexical_score",
             "token_overlap",
+            "title_bigram_overlap",
             "bigram_overlap",
+            "category_score",
             "bm25_score",
             "embedding_score",
             "bm25_raw_score",

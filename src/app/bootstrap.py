@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import inspect
 from pathlib import Path
 
 from src.rag.config import (
@@ -181,12 +180,6 @@ def _load_product_search(
                 "metadata_products"
             ]
         ),
-        "review_comment_candidates": (
-            candidate_config.get(
-                "review_comments",
-                250,
-            )
-        ),
         "reranker_candidates": (
             candidate_config[
                 "reranker_products"
@@ -204,28 +197,15 @@ def _load_product_search(
         ),
     }
 
-    # Supports both:
-    # - exact pre-BERT LLM pipeline;
-    # - the later candidate-scoped review-evidence improvement.
-    pipeline_signature = (
-        inspect.signature(
-            ProductSearchPipeline.__init__
-        )
-    )
-
-    if (
+    pipeline_kwargs[
         "review_comments_per_product"
-        in pipeline_signature.parameters
-    ):
-        pipeline_kwargs[
-            "review_comments_per_product"
-        ] = candidate_config.get(
-            "review_comments_per_product",
-            reranker_config.get(
-                "max_reviews_per_product",
-                2,
-            ),
-        )
+    ] = candidate_config.get(
+        "review_comments_per_product",
+        reranker_config.get(
+            "max_reviews_per_product",
+            2,
+        ),
+    )
 
     return ProductSearchPipeline(
         **pipeline_kwargs

@@ -51,3 +51,39 @@ Cost fields remain `N/A` until exact provider pricing is configured.
 | unsupported_claim | 2 |
 | overgeneralization | 1 |
 | missed_key_evidence | 1 |
+
+## Product Search
+
+Evaluation set: **30 Persian discovery queries** across brand, attribute, experiential, negative-preference, and multi-constraint intents. Relevance qrels are currently **LLM-assisted proxy labels**, not independent human gold.
+
+### Held-out TEST
+
+| Metric | Metadata only | LLM-reranked |
+|---|---:|---:|
+| HitRate@1 | 0.400 | **0.700** |
+| MRR@10 | 0.484 | **0.700** |
+| nDCG@1 | 0.343 | **0.700** |
+| nDCG@3 | 0.334 | **0.677** |
+| nDCG@5 | 0.366 | **0.667** |
+| nDCG@10 | 0.473 | **0.638** |
+| Precision@5 | 0.340 | **0.600** |
+
+All evaluated LLM-based fusion policies tied on this benchmark. Production retains `tiered_30_70`, using metadata as a deterministic tie-breaker rather than claiming a unique weight optimum.
+
+Runtime over 30 evaluation queries:
+
+- Mean Product Search latency: **12.10 s**
+- P95 latency: **19.06 s**
+- Total reranker tokens: **76,932** (~2,564/query)
+
+Failure analysis:
+
+| Failure | Queries |
+|---|---:|
+| OK | 19 |
+| No relevant product in judged pool | 8 |
+| Candidate retrieval miss | 2 |
+| Top-rank error | 1 |
+
+The eight zero-positive judged pools are retained as benchmark coverage failures rather than removed.
+

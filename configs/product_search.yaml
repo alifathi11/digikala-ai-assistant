@@ -7,7 +7,7 @@ product_search:
     candidate_multiplier: 4
 
     # Query-time lexical grounding over title / brand / category metadata.
-    lexical_weight: 0.30
+    lexical_weight: 0.40
     rrf_k: 60
 
     # Bounded exact-brand boost.
@@ -19,8 +19,6 @@ product_search:
 
   candidates:
     metadata_products: 50
-    # Legacy global review budget retained for API compatibility.
-    review_comments: 250
     # New: retrieve evidence separately inside each shortlisted product.
     review_comments_per_product: 2
     reranker_products: 12

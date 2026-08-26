@@ -25,7 +25,6 @@ class ProductSearchPipeline:
         review_retriever,
         reranker=None,
         metadata_candidates=50,
-        review_comment_candidates=250,
         review_comments_per_product=2,
         reranker_candidates=12,
         metadata_weight=0.30,
@@ -43,10 +42,6 @@ class ProductSearchPipeline:
 
         self.metadata_candidates = int(
             metadata_candidates
-        )
-
-        self.review_comment_candidates = int(
-            review_comment_candidates
         )
 
         self.review_comments_per_product = int(
@@ -95,38 +90,6 @@ class ProductSearchPipeline:
         self.products = (
             metadata_retriever
             .documents
-        )
-
-
-    @staticmethod
-    def _normalize(
-        series,
-    ):
-        series = (
-            series
-            .astype(float)
-        )
-
-        if len(series) == 0:
-            return series
-
-        minimum = series.min()
-        maximum = series.max()
-
-        if maximum == minimum:
-            return pd.Series(
-                [1.0] * len(
-                    series
-                ),
-                index=series.index,
-            )
-
-        return (
-            series
-            - minimum
-        ) / (
-            maximum
-            - minimum
         )
 
 

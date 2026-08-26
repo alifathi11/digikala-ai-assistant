@@ -1,0 +1,91 @@
+queries:
+  - query_id: q001
+    query_type: brand
+    query: "شامپو ضد ریزش سریتا"
+  - query_id: q002
+    query_type: brand
+    query: "ضد آفتاب ژیناژن مناسب پوست چرب"
+  - query_id: q003
+    query_type: brand
+    query: "کرم آبرسان سیمپل"
+  - query_id: q004
+    query_type: brand
+    query: "پاوربانک شیائومی 20000"
+  - query_id: q005
+    query_type: brand
+    query: "هندزفری بی سیم انکر"
+  - query_id: q006
+    query_type: brand
+    query: "ماشین اصلاح فیلیپس"
+  - query_id: q007
+    query_type: attribute
+    query: "ضد آفتاب بی رنگ SPF50 برای پوست چرب"
+  - query_id: q008
+    query_type: attribute
+    query: "شامپو ضد شوره برای موهای چرب"
+  - query_id: q009
+    query_type: attribute
+    query: "سرخ کن بدون روغن با ظرفیت حداقل 6 لیتر"
+  - query_id: q010
+    query_type: attribute
+    query: "ماوس بی سیم ارگونومیک"
+  - query_id: q011
+    query_type: attribute
+    query: "کوله لپ تاپ 15.6 اینچ ضد آب"
+  - query_id: q012
+    query_type: attribute
+    query: "کرم مرطوب کننده مناسب پوست خشک"
+  - query_id: q013
+    query_type: experiential
+    query: "کرم آبرسان سبک و زود جذب"
+  - query_id: q014
+    query_type: experiential
+    query: "هدفون راحت برای استفاده طولانی"
+  - query_id: q015
+    query_type: experiential
+    query: "جارو شارژی سبک با مکش خوب"
+  - query_id: q016
+    query_type: experiential
+    query: "اسپیکر با صدای شفاف و بیس خوب"
+  - query_id: q017
+    query_type: experiential
+    query: "کفش راحت برای پیاده روی طولانی"
+  - query_id: q018
+    query_type: experiential
+    query: "عطر با ماندگاری خوب و بوی ملایم"
+  - query_id: q019
+    query_type: negative
+    query: "ضد آفتاب پوست چرب که جوش نزنه"
+  - query_id: q020
+    query_type: negative
+    query: "شامپو که مو رو خشک نکنه"
+  - query_id: q021
+    query_type: negative
+    query: "کرم پودر که روی پوست ماسیده نشه"
+  - query_id: q022
+    query_type: negative
+    query: "هدفون که گوش رو اذیت نکنه"
+  - query_id: q023
+    query_type: negative
+    query: "پاوربانک که داغ نکنه"
+  - query_id: q024
+    query_type: negative
+    query: "ریمل که زیر چشم نریزه"
+  - query_id: q025
+    query_type: multi_constraint
+    query: "شامپو ضد ریزش سریتا برای موهای چرب"
+  - query_id: q026
+    query_type: multi_constraint
+    query: "آبرسان پوست چرب سبک و بدون حس چسبندگی"
+  - query_id: q027
+    query_type: multi_constraint
+    query: "هندزفری بلوتوث با باتری خوب و میکروفون مناسب تماس"
+  - query_id: q028
+    query_type: multi_constraint
+    query: "پاوربانک 20000 فست شارژ و سبک"
+  - query_id: q029
+    query_type: multi_constraint
+    query: "ماشین اصلاح صورت با اصلاح نرم و بدون سوزش"
+  - query_id: q030
+    query_type: multi_constraint
+    query: "سرم مو ضد وز بدون چرب کردن مو"
