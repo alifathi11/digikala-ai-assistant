@@ -9,10 +9,14 @@ class EmbeddingRetriever(BaseRetriever):
 
     def __init__(
         self,
-        documents: pd.DataFrame,
-        embedding_model: BaseEmbedding,
-        text_column: str = "search_text"
+        documents,
+        embedding_model,
+        processor=None,
+        text_column="search_text"
     ):
+        super().__init__(
+            processor
+        )
 
         self.documents = (
             documents
@@ -52,6 +56,8 @@ class EmbeddingRetriever(BaseRetriever):
         query: str,
         top_k: int = 5
     ):
+
+        query = self.process_query(query)
 
         query_embedding = (
             self.embedding_model.encode(

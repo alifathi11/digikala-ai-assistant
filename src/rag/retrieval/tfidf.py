@@ -10,9 +10,13 @@ class TFIDFRetriever(BaseRetriever):
 
     def __init__(
         self,
-        documents: pd.DataFrame,
-        text_column: str = "search_text"
+        documents,
+        processor=None,
+        text_column="search_text"
     ):
+        super().__init__(
+            processor
+        )
 
         self.documents = documents.reset_index(drop=True)
 
@@ -50,6 +54,8 @@ class TFIDFRetriever(BaseRetriever):
         query: str,
         top_k: int = 5
     ):
+        
+        query = self.process_query(query)
 
         query_vector = (
             self.vectorizer

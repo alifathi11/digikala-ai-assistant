@@ -1,4 +1,8 @@
+from pathlib import Path
+import glob
+
 import faiss
+import pandas as pd
 import numpy as np
 
 
@@ -6,38 +10,40 @@ class FAISSVectorStore:
 
     def __init__(self):
 
-        self.index = None
+        self.chunk_files = []
+        self.offsets = []
         self.documents = None
 
+    def load(self, path):
 
-    def build(
-        self,
-        embeddings,
-        documents
-    ):
+        path = Path(path)
 
-        embeddings = np.asarray(
-            embeddings
-        ).astype("float32")
+        self.chunk_files = []
+        self.offsets = []
 
-
-        dimension = embeddings.shape[1]
-
-
-        self.index = faiss.IndexFlatIP(
-            dimension
+        chunk_files = glob.glob(
+            str(path / "chunks" / "*.faiss")
         )
 
-
-        self.index.add(
-            embeddings
+        chunk_files = sorted(
+            chunk_files,
+            key=self._get_chunk_start
         )
 
+        for file in chunk_files:
 
-        self.documents = documents.reset_index(
-            drop=True
+            index = faiss.read_index(file)
+
+            chunk_start = self._get_chunk_start(file)
+
+            self.chunk_files.append(file)
+            self.offsets.append(chunk_start)
+
+            del index
+
+        self.documents = pd.read_parquet(
+            path / "metadata.parquet"
         )
-
 
     def search(
         self,
@@ -50,18 +56,65 @@ class FAISSVectorStore:
         ).astype("float32")
 
 
-        scores, indices = self.index.search(
-            query_embedding,
-            top_k
+        all_results = []
+
+
+        for file, offset in zip(
+            self.chunk_files,
+            self.offsets
+        ):
+
+            index = faiss.read_index(
+                file
+            )
+
+
+            scores, ids = index.search(
+                query_embedding,
+                top_k
+            )
+
+
+            for score, idx in zip(
+                scores[0],
+                ids[0]
+            ):
+
+                if idx == -1:
+                    continue
+
+
+                all_results.append(
+                    {
+                        "id": int(idx + offset),
+                        "score": float(score)
+                    }
+                )
+
+
+            del index
+
+
+        results = (
+            pd.DataFrame(all_results)
+            .sort_values(
+                "score",
+                ascending=False
+            )
+            .head(top_k)
         )
 
 
-        results = self.documents.iloc[
-            indices[0]
-        ].copy()
-
-
-        results["score"] = scores[0]
-
+        results = results.merge(
+            self.documents,
+            left_on="id",
+            right_index=True,
+            how="left"
+        )
 
         return results
+
+    def _get_chunk_start(self, file):
+        return int(
+            Path(file).stem.split("_")[-1]
+        )
