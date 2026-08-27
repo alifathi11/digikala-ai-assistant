@@ -1686,6 +1686,42 @@ html {
     font-size: 0.79rem !important;
 }
 
+
+
+/* Per-feature model settings. */
+[data-testid="stSidebar"] details {
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+[data-testid="stSidebar"] details > summary {
+    min-height: 42px;
+}
+
+[data-testid="stSidebar"] details [data-baseweb="select"] > div {
+    min-height: 41px;
+}
+
+.model-setting-active {
+    margin: -0.25rem 0 0.55rem;
+    color: var(--text-muted) !important;
+    font-size: 0.68rem;
+    direction: ltr;
+    text-align: left;
+}
+
+.model-setting-active strong {
+    color: var(--success) !important;
+    font-weight: 750;
+}
+
+[data-testid="stSidebar"] [data-testid="stExpander"] .stButton > button {
+    min-height: 41px;
+    border-radius: 11px;
+}
+
+
 </style>
 
 """

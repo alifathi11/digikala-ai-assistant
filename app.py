@@ -8,6 +8,12 @@ from src.app.bootstrap import (
     create_app_services,
 )
 from src.app.navigation import Feature
+from src.app.model_settings import (
+    apply_model_selection,
+    ensure_models_applied,
+    get_session_services,
+    render_model_settings,
+)
 from src.app.safety import render_ui_error
 from src.app.pages.qa import (
     render as render_qa,
@@ -23,6 +29,9 @@ from src.app.pages.analytics import (
 )
 from src.app.theme import (
     APP_CSS,
+)
+from src.rag.config import (
+    load_project_config,
 )
 
 
@@ -66,6 +75,20 @@ load_dotenv(
     / ".env"
 )
 
+API_KEY = os.getenv(
+    "METIS_API_KEY"
+)
+
+BASE_URL = os.getenv(
+    "METIS_BASE_URL"
+)
+
+PROJECT_CONFIG = (
+    load_project_config(
+        PROJECT_ROOT
+    )
+)
+
 st.set_page_config(
     page_title=(
         "Digikala AI Assistant"
@@ -87,13 +110,8 @@ st.markdown(
     show_spinner=False
 )
 def load_services():
-    api_key = os.getenv(
-        "METIS_API_KEY"
-    )
-
-    base_url = os.getenv(
-        "METIS_BASE_URL"
-    )
+    api_key = API_KEY
+    base_url = BASE_URL
 
     if not api_key:
         raise RuntimeError(
@@ -184,6 +202,12 @@ with st.sidebar:
                 disabled=True,
             )
 
+    st.divider()
+
+    selected_models, apply_models_requested = (
+        render_model_settings()
+    )
+
     st.markdown(
         """
         <div class="sidebar-status">
@@ -200,9 +224,41 @@ try:
         "در حال آماده‌سازی "
         "مدل‌ها و ایندکس‌ها..."
     ):
-        services = (
+        base_services = (
             load_services()
         )
+
+        services = (
+            get_session_services(
+                base_services
+            )
+        )
+
+        ensure_models_applied(
+            services=services,
+            api_key=API_KEY,
+            base_url=BASE_URL,
+            project_config=(
+                PROJECT_CONFIG
+            ),
+        )
+
+        if apply_models_requested:
+            apply_model_selection(
+                services=services,
+                selected_models=(
+                    selected_models
+                ),
+                api_key=API_KEY,
+                base_url=BASE_URL,
+                project_config=(
+                    PROJECT_CONFIG
+                ),
+            )
+
+            st.sidebar.success(
+                "مدل‌های انتخاب‌شده اعمال شدند."
+            )
 
 except Exception as exc:
     st.error(
