@@ -1,0 +1,10 @@
+comparison:
+  min_products: 2
+  max_products: 3
+
+  # Review evidence is retrieved separately inside every selected product.
+  reviews_per_product: 3
+
+  # Prompt-budget controls.
+  max_context_chars: 18000
+  max_chars_per_review: 900

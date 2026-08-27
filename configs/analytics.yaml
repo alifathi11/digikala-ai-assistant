@@ -1,0 +1,42 @@
+analytics:
+  data:
+    products_path: data/processed/products_search.parquet
+    comments_path: data/processed/comments_clean.parquet
+
+  audit:
+    ready_coverage: 0.70
+    limited_coverage: 0.30
+    minimum_comment_join_rate: 0.95
+
+    # Native product score in this dataset is 0..100.
+    # Rate=0 with Rate_cnt=0 is treated as unrated.
+    product_rating_max: 100
+
+    # Heuristic for detecting a per-product review-corpus cap.
+    review_cap_min_products: 20
+
+    generic_brand_values:
+      - "متفرقه"
+      - "Unknown"
+      - "نامشخص"
+
+    unknown_category_values:
+      - "Unknown"
+      - "نامشخص"
+
+  aggregation:
+    default_top_n: 10
+    min_rating_count_for_leaders: 10
+    product_rating_max: 100
+    exclude_generic_brands_by_default: true
+
+  manager_qa:
+    top_n: 5
+
+    # Fixed from the real Notebook-16 audit.
+    brand_usable_coverage: 0.441082
+    product_rating_coverage: 0.380649
+
+    # Disabled by audit policy.
+    historical_price_enabled: false
+    review_volume_ranking_enabled: false

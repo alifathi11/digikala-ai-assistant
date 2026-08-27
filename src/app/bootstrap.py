@@ -9,7 +9,13 @@ from src.rag.generation import (
 )
 from src.rag.pipeline import (
     GroundedQAPipeline,
+    ManagerAnalyticsPipeline,
+    ProductComparisonPipeline,
     ProductSearchPipeline,
+)
+from src.rag.analytics import (
+    AnalyticsRepository,
+    AnalyticsService,
 )
 from src.rag.product_search import (
     ProductBM25Index,
@@ -33,6 +39,8 @@ class AppServices:
     qa: GroundedQAPipeline
     catalog: ProductCatalog
     product_search: ProductSearchPipeline
+    comparison: ProductComparisonPipeline
+    analytics: ManagerAnalyticsPipeline
 
 
 def _load_product_search(
@@ -212,6 +220,150 @@ def _load_product_search(
     )
 
 
+def _load_comparison(
+    project_root,
+    retrieval,
+    generator,
+    product_search,
+):
+    comparison_config = load_config(
+        project_root
+        / "configs"
+        / "comparison.yaml"
+    )[
+        "comparison"
+    ]
+
+    return ProductComparisonPipeline(
+        product_documents=(
+            product_search.products
+        ),
+        review_retriever=(
+            retrieval.hybrid
+        ),
+        review_documents=(
+            retrieval.documents
+        ),
+        generator=generator,
+        reviews_per_product=(
+            comparison_config[
+                "reviews_per_product"
+            ]
+        ),
+        min_products=(
+            comparison_config[
+                "min_products"
+            ]
+        ),
+        max_products=(
+            comparison_config[
+                "max_products"
+            ]
+        ),
+        max_context_chars=(
+            comparison_config[
+                "max_context_chars"
+            ]
+        ),
+        max_chars_per_review=(
+            comparison_config[
+                "max_chars_per_review"
+            ]
+        ),
+    )
+
+
+def _load_analytics(
+    project_root,
+    generator,
+):
+    config = load_config(
+        project_root
+        / "configs"
+        / "analytics.yaml"
+    )[
+        "analytics"
+    ]
+
+    audit_config = config[
+        "audit"
+    ]
+
+    aggregation_config = config[
+        "aggregation"
+    ]
+
+    manager_config = config[
+        "manager_qa"
+    ]
+
+    repository = (
+        AnalyticsRepository
+        .from_project_root(
+            project_root
+        )
+    )
+
+    service = AnalyticsService(
+        repository=repository,
+        generic_brand_values=(
+            audit_config[
+                "generic_brand_values"
+            ]
+        ),
+        unknown_category_values=(
+            audit_config[
+                "unknown_category_values"
+            ]
+        ),
+        min_rating_count_for_leaders=(
+            aggregation_config[
+                "min_rating_count_for_leaders"
+            ]
+        ),
+        default_top_n=(
+            aggregation_config[
+                "default_top_n"
+            ]
+        ),
+        product_rating_max=(
+            aggregation_config[
+                "product_rating_max"
+            ]
+        ),
+    )
+
+    return ManagerAnalyticsPipeline(
+        analytics_service=service,
+        generator=generator,
+        brand_usable_coverage=(
+            manager_config[
+                "brand_usable_coverage"
+            ]
+        ),
+        product_rating_coverage=(
+            manager_config[
+                "product_rating_coverage"
+            ]
+        ),
+        historical_price_enabled=(
+            manager_config[
+                "historical_price_enabled"
+            ]
+        ),
+        review_volume_ranking_enabled=(
+            manager_config[
+                "review_volume_ranking_enabled"
+            ]
+        ),
+        top_n=(
+            manager_config[
+                "top_n"
+            ]
+        ),
+    )
+
+
 def create_app_services(
     project_root,
     api_key,
@@ -331,6 +483,28 @@ def create_app_services(
         )
     )
 
+    comparison = (
+        _load_comparison(
+            project_root=(
+                project_root
+            ),
+            retrieval=retrieval,
+            generator=generator,
+            product_search=(
+                product_search
+            ),
+        )
+    )
+
+    analytics = (
+        _load_analytics(
+            project_root=(
+                project_root
+            ),
+            generator=generator,
+        )
+    )
+
     return AppServices(
         retrieval=retrieval,
         qa=qa,
@@ -338,4 +512,6 @@ def create_app_services(
         product_search=(
             product_search
         ),
+        comparison=comparison,
+        analytics=analytics,
     )

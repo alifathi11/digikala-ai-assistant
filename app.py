@@ -14,6 +14,12 @@ from src.app.pages.qa import (
 from src.app.pages.product_search import (
     render as render_product_search,
 )
+from src.app.pages.comparison import (
+    render as render_comparison,
+)
+from src.app.pages.analytics import (
+    render as render_analytics,
+)
 from src.app.theme import (
     APP_CSS,
 )
@@ -42,13 +48,15 @@ FEATURES = [
         key="comparison",
         label="مقایسه‌ی محصولات",
         icon="⚖️",
-        enabled=False,
+        enabled=True,
+        renderer=render_comparison,
     ),
     Feature(
         key="analytics",
         label="تحلیل مدیریتی",
         icon="📊",
-        enabled=False,
+        enabled=True,
+        renderer=render_analytics,
     ),
 ]
 
@@ -179,7 +187,7 @@ with st.sidebar:
         """
         <div class="sidebar-status">
             <span class="status-dot"></span>
-            <span>FAISS + BM25 + بازرتبه‌بندی هوشمند</span>
+            <span>جست‌وجو + پرسش + مقایسه + تحلیل مدیریتی</span>
         </div>
         """,
         unsafe_allow_html=True,
