@@ -5,6 +5,11 @@ from textwrap import dedent
 import pandas as pd
 import streamlit as st
 
+from src.app.safety import (
+    render_ui_error,
+    require_mapping,
+)
+
 
 CONFIDENCE_LABELS = {
     "high": "بالا",
@@ -478,9 +483,32 @@ def _render_tables(
 def _render_manager_answer(
     result,
 ):
-    valid = result[
-        "numeric_faithfulness_valid"
-    ]
+    result = require_mapping(
+        result,
+        required_keys=(
+            "answer",
+        ),
+        label="پاسخ تحلیل مدیریتی",
+    )
+
+    answer = str(
+        result.get(
+            "answer",
+            "",
+        )
+    ).strip()
+
+    if not answer:
+        raise ValueError(
+            "پاسخ تحلیل مدیریتی خالی است."
+        )
+
+    valid = bool(
+        result.get(
+            "numeric_faithfulness_valid",
+            False,
+        )
+    )
 
     badge = (
         "Numeric grounding: معتبر"
@@ -488,15 +516,16 @@ def _render_manager_answer(
         else "Numeric grounding: نیازمند بررسی"
     )
 
+    confidence_key = result.get(
+        "confidence",
+        "low",
+    )
+
     confidence = (
         CONFIDENCE_LABELS.get(
-            result.get(
-                "confidence",
-                "low",
-            ),
-            result.get(
-                "confidence",
-                "low",
+            confidence_key,
+            str(
+                confidence_key
             ),
         )
     )
@@ -510,17 +539,31 @@ def _render_manager_answer(
                     <span>اعتماد: {_escape(confidence)}</span>
                 </div>
                 <div class="analytics-answer-text">
-                    {_escape(result["answer"])}
+                    {_escape(answer)}
                 </div>
             </div>
             """
         ).strip()
     )
 
-    for insight in result.get(
+    insights = result.get(
         "insights",
         [],
+    )
+
+    if not isinstance(
+        insights,
+        list,
     ):
+        insights = []
+
+    for insight in insights:
+        if not isinstance(
+            insight,
+            dict,
+        ):
+            continue
+
         st.html(
             dedent(
                 f"""
@@ -537,6 +580,12 @@ def _render_manager_answer(
         [],
     )
 
+    if not isinstance(
+        caveats,
+        list,
+    ):
+        caveats = []
+
     if caveats:
         with st.expander(
             "محدودیت‌ها و caveatها",
@@ -545,13 +594,38 @@ def _render_manager_answer(
             for caveat in caveats:
                 st.write(
                     "•",
-                    caveat,
+                    str(
+                        caveat
+                    ),
                 )
 
     telemetry = result.get(
         "telemetry",
         {},
     )
+
+    if not isinstance(
+        telemetry,
+        dict,
+    ):
+        telemetry = {}
+
+    try:
+        total_latency_seconds = (
+            float(
+                telemetry.get(
+                    "total_latency_ms",
+                    0,
+                )
+                or 0
+            )
+            / 1000
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        total_latency_seconds = 0.0
 
     with st.expander(
         "جزئیات فنی پاسخ مدیریتی",
@@ -565,9 +639,7 @@ def _render_manager_answer(
             0
         ].metric(
             "زمان کل",
-            (
-                f"{float(telemetry.get('total_latency_ms', 0)) / 1000:.2f}s"
-            ),
+            f"{total_latency_seconds:.2f}s",
         )
 
         columns[
@@ -720,25 +792,44 @@ def render(
                 ).strip()
             ),
         ):
-            with st.spinner(
-                "در حال ساخت پاسخ grounded..."
-            ):
-                result = (
-                    services
-                    .analytics
-                    .answer(
-                        question=question,
-                        filters=filters,
+            try:
+                with st.spinner(
+                    "در حال ساخت پاسخ grounded..."
+                ):
+                    result = (
+                        services
+                        .analytics
+                        .answer(
+                            question=question,
+                            filters=filters,
+                        )
                     )
+
+                require_mapping(
+                    result,
+                    required_keys=(
+                        "answer",
+                    ),
+                    label="پاسخ تحلیل مدیریتی",
                 )
 
-            st.session_state[
-                "analytics_manager_result"
-            ] = result
+                st.session_state[
+                    "analytics_manager_result"
+                ] = result
 
-            st.session_state[
-                "analytics_manager_scope"
-            ] = filters
+                st.session_state[
+                    "analytics_manager_scope"
+                ] = filters
+
+            except Exception as exc:
+                st.session_state.pop(
+                    "analytics_manager_result",
+                    None,
+                )
+                render_ui_error(
+                    "مدل پاسخ مدیریتی قابل نمایش برنگرداند.",
+                    exc,
+                )
 
         result = st.session_state.get(
             "analytics_manager_result"
@@ -755,9 +846,19 @@ def render(
             and result_scope
             == filters
         ):
-            _render_manager_answer(
-                result
-            )
+            try:
+                _render_manager_answer(
+                    result
+                )
+            except Exception as exc:
+                st.session_state.pop(
+                    "analytics_manager_result",
+                    None,
+                )
+                render_ui_error(
+                    "پاسخ مدیریتی تولید شد اما ساختار آن قابل نمایش نبود.",
+                    exc,
+                )
 
     else:
         category2_values = (
@@ -845,32 +946,51 @@ def render(
                 ).strip()
             ),
         ):
-            with st.spinner(
-                "در حال تحلیل مقایسه..."
-            ):
-                result = (
-                    services
-                    .analytics
-                    .answer(
-                        question=question,
-                        comparison_categories=(
-                            selected
-                        ),
-                        category_field=(
-                            "Category2"
-                        ),
+            try:
+                with st.spinner(
+                    "در حال تحلیل مقایسه..."
+                ):
+                    result = (
+                        services
+                        .analytics
+                        .answer(
+                            question=question,
+                            comparison_categories=(
+                                selected
+                            ),
+                            category_field=(
+                                "Category2"
+                            ),
+                        )
                     )
+
+                require_mapping(
+                    result,
+                    required_keys=(
+                        "answer",
+                    ),
+                    label="پاسخ مقایسه مدیریتی",
                 )
 
-            st.session_state[
-                "analytics_compare_result"
-            ] = result
+                st.session_state[
+                    "analytics_compare_result"
+                ] = result
 
-            st.session_state[
-                "analytics_compare_scope"
-            ] = list(
-                selected
-            )
+                st.session_state[
+                    "analytics_compare_scope"
+                ] = list(
+                    selected
+                )
+
+            except Exception as exc:
+                st.session_state.pop(
+                    "analytics_compare_result",
+                    None,
+                )
+                render_ui_error(
+                    "مدل توضیح مقایسه‌ی قابل نمایش برنگرداند.",
+                    exc,
+                )
 
         result = st.session_state.get(
             "analytics_compare_result"
@@ -885,6 +1005,16 @@ def render(
                 selected
             )
         ):
-            _render_manager_answer(
-                result
-            )
+            try:
+                _render_manager_answer(
+                    result
+                )
+            except Exception as exc:
+                st.session_state.pop(
+                    "analytics_compare_result",
+                    None,
+                )
+                render_ui_error(
+                    "پاسخ مقایسه تولید شد اما ساختار آن قابل نمایش نبود.",
+                    exc,
+                )

@@ -3,6 +3,11 @@ import html
 import pandas as pd
 import streamlit as st
 
+from src.app.safety import (
+    render_ui_error,
+    require_mapping,
+)
+
 
 def _escape(
     value,
@@ -393,86 +398,111 @@ def render(
     with st.chat_message(
         "assistant"
     ):
-        with st.spinner(
-            "در حال بررسی نظرات..."
-        ):
-            result = (
-                services
-                .qa
-                .answer(
-                    query=prompt,
-                    product_id=(
-                        product_id
-                    ),
+        try:
+            with st.spinner(
+                "در حال بررسی نظرات..."
+            ):
+                result = (
+                    services
+                    .qa
+                    .answer(
+                        query=prompt,
+                        product_id=(
+                            product_id
+                        ),
+                    )
+                )
+
+            result = require_mapping(
+                result,
+                required_keys=(
+                    "answer",
+                ),
+                label="پاسخ پرسش و پاسخ",
+            )
+
+            answer = str(
+                result.get(
+                    "answer",
+                    "",
+                )
+            ).strip()
+
+            if not answer:
+                raise ValueError(
+                    "پاسخ مدل خالی است."
+                )
+
+            insufficient_evidence = bool(
+                result.get(
+                    "insufficient_evidence",
+                    True,
                 )
             )
 
-        st.markdown(
-            result[
-                "answer"
-            ]
-        )
-
-        if result[
-            "insufficient_evidence"
-        ]:
-            st.warning(
-                "شواهد بازیابی‌شده "
-                "برای پاسخ قطعی کافی "
-                "نبوده است."
+            confidence = result.get(
+                "confidence",
+                "نامشخص",
             )
 
-        st.caption(
-            "اطمینان پاسخ: "
-            f"{result['confidence']}"
-        )
-
-        with st.expander(
-            "شواهد پاسخ",
-            expanded=True,
-        ):
-            _render_evidence(
-                result[
-                    "evidence_documents"
-                ]
+            evidence_documents = result.get(
+                "evidence_documents"
             )
 
-        with st.expander(
-            "جزئیات فنی"
-        ):
-            _render_telemetry(
-                result[
-                    "telemetry"
-                ]
+            telemetry = result.get(
+                "telemetry",
+                {},
             )
+
+            st.markdown(
+                answer
+            )
+
+            if insufficient_evidence:
+                st.warning(
+                    "شواهد بازیابی‌شده "
+                    "برای پاسخ قطعی کافی "
+                    "نبوده است."
+                )
+
+            st.caption(
+                "اطمینان پاسخ: "
+                f"{confidence}"
+            )
+
+            with st.expander(
+                "شواهد پاسخ",
+                expanded=True,
+            ):
+                _render_evidence(
+                    evidence_documents
+                )
+
+            with st.expander(
+                "جزئیات فنی"
+            ):
+                _render_telemetry(
+                    telemetry
+                )
+
+        except Exception as exc:
+            render_ui_error(
+                "پاسخ مدل قابل پردازش نبود و چیزی به‌عنوان پاسخ نهایی ثبت نشد.",
+                exc,
+            )
+            return
 
     history.append(
         {
             "role": "assistant",
-            "content": (
-                result[
-                    "answer"
-                ]
-            ),
-            "confidence": (
-                result[
-                    "confidence"
-                ]
-            ),
+            "content": answer,
+            "confidence": confidence,
             "insufficient_evidence": (
-                result[
-                    "insufficient_evidence"
-                ]
+                insufficient_evidence
             ),
             "evidence_documents": (
-                result[
-                    "evidence_documents"
-                ]
+                evidence_documents
             ),
-            "telemetry": (
-                result[
-                    "telemetry"
-                ]
-            ),
+            "telemetry": telemetry,
         }
     )

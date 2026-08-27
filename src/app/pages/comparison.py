@@ -5,6 +5,11 @@ from textwrap import dedent
 import pandas as pd
 import streamlit as st
 
+from src.app.safety import (
+    render_ui_error,
+    require_mapping,
+)
+
 
 STANCE_LABELS = {
     "positive": "مثبت",
@@ -1014,27 +1019,45 @@ def render(
                 "عبارت جست‌وجوی محصول را وارد کنید."
             )
         else:
-            with st.spinner(
-                "در حال جست‌وجوی محصول..."
-            ):
-                results = (
-                    services
-                    .product_search
-                    .metadata_retriever
-                    .retrieve(
-                        normalized,
-                        top_k=8,
+            try:
+                with st.spinner(
+                    "در حال جست‌وجوی محصول..."
+                ):
+                    results = (
+                        services
+                        .product_search
+                        .metadata_retriever
+                        .retrieve(
+                            normalized,
+                            top_k=8,
+                        )
                     )
-                    .copy()
+
+                if not isinstance(
+                    results,
+                    pd.DataFrame,
+                ):
+                    raise ValueError(
+                        "خروجی جست‌وجوی محصول ساختار جدولی ندارد."
+                    )
+
+                st.session_state[
+                    "comparison_search_query"
+                ] = normalized
+
+                st.session_state[
+                    "comparison_search_results"
+                ] = results.copy()
+
+            except Exception as exc:
+                st.session_state.pop(
+                    "comparison_search_results",
+                    None,
                 )
-
-            st.session_state[
-                "comparison_search_query"
-            ] = normalized
-
-            st.session_state[
-                "comparison_search_results"
-            ] = results
+                render_ui_error(
+                    "جست‌وجوی محصول برای مقایسه قابل پردازش نبود.",
+                    exc,
+                )
 
     _render_search_results(
         services
@@ -1092,36 +1115,81 @@ def render(
                     "معیار مقایسه را وارد کنید."
                 )
             else:
-                with st.spinner(
-                    "در حال بررسی شواهد و مقایسه‌ی محصولات..."
-                ):
-                    start = time.perf_counter()
+                try:
+                    with st.spinner(
+                        "در حال بررسی شواهد و مقایسه‌ی محصولات..."
+                    ):
+                        start = time.perf_counter()
 
-                    result = (
-                        services
-                        .comparison
-                        .compare(
-                            product_ids=(
-                                selected_ids
-                            ),
-                            query=(
-                                normalized_query
-                            ),
+                        result = (
+                            services
+                            .comparison
+                            .compare(
+                                product_ids=(
+                                    selected_ids
+                                ),
+                                query=(
+                                    normalized_query
+                                ),
+                            )
                         )
+
+                    result = require_mapping(
+                        result,
+                        required_keys=(
+                            "product_ids",
+                        ),
+                        label="خروجی مقایسه",
                     )
 
-                    result[
+                    result_product_ids = result.get(
+                        "product_ids"
+                    )
+
+                    if not isinstance(
+                        result_product_ids,
+                        (
+                            list,
+                            tuple,
+                        ),
+                    ):
+                        raise ValueError(
+                            "فهرست شناسه‌های خروجی مقایسه معتبر نیست."
+                        )
+
+                    telemetry = result.get(
                         "telemetry"
-                    ][
+                    )
+
+                    if not isinstance(
+                        telemetry,
+                        dict,
+                    ):
+                        telemetry = {}
+                        result[
+                            "telemetry"
+                        ] = telemetry
+
+                    telemetry[
                         "ui_total_latency_ms"
                     ] = (
                         time.perf_counter()
                         - start
                     ) * 1000
 
-                st.session_state[
-                    "comparison_result"
-                ] = result
+                    st.session_state[
+                        "comparison_result"
+                    ] = result
+
+                except Exception as exc:
+                    st.session_state.pop(
+                        "comparison_result",
+                        None,
+                    )
+                    render_ui_error(
+                        "مدل نتیجه‌ی مقایسه‌ی قابل نمایش برنگرداند.",
+                        exc,
+                    )
 
     else:
         st.info(
@@ -1151,6 +1219,16 @@ def render(
         if current_ids == result_ids:
             st.divider()
 
-            _render_result(
-                result
-            )
+            try:
+                _render_result(
+                    result
+                )
+            except Exception as exc:
+                st.session_state.pop(
+                    "comparison_result",
+                    None,
+                )
+                render_ui_error(
+                    "نتیجه‌ی مقایسه تولید شد اما ساختار آن قابل نمایش نبود.",
+                    exc,
+                )

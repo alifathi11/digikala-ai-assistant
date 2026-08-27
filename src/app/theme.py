@@ -1641,6 +1641,51 @@ pre,
     }
 }
 
+
+
+/* Final UI robustness/readability overrides. */
+html {
+    font-size: 17px !important;
+}
+
+/* Hide Streamlit keyboard-submit helper text under text inputs/text areas. */
+[data-testid="InputInstructions"],
+.stTextInput [data-testid="InputInstructions"],
+.stTextArea [data-testid="InputInstructions"],
+[data-testid="stTextInput"] [data-testid="InputInstructions"],
+[data-testid="stTextArea"] [data-testid="InputInstructions"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Slightly larger native controls without making the layout bulky. */
+.stTextInput input,
+.stTextArea textarea,
+[data-baseweb="select"] span,
+[data-testid="stRadio"] p,
+.stButton button p,
+[data-testid="stFormSubmitButton"] button p {
+    font-size: 0.94rem !important;
+}
+
+.stSelectbox label,
+.stTextInput label,
+.stTextArea label,
+[data-testid="stWidgetLabel"] p {
+    font-size: 0.90rem !important;
+}
+
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p,
+.stCaption,
+.stCaption p {
+    font-size: 0.79rem !important;
+}
+
 </style>
 
 """

@@ -5,6 +5,8 @@ from textwrap import dedent
 import pandas as pd
 import streamlit as st
 
+from src.app.safety import render_ui_error
+
 
 STATUS_LABELS = {
     "support": (
@@ -711,58 +713,77 @@ def render(
                 "عبارت جست‌وجو را وارد کنید."
             )
         else:
-            with st.spinner(
-                "در حال جست‌وجو و بررسی نظرات کاربران..."
-            ):
-                start = (
-                    time.perf_counter()
-                )
+            try:
+                with st.spinner(
+                    "در حال جست‌وجو و بررسی نظرات کاربران..."
+                ):
+                    start = (
+                        time.perf_counter()
+                    )
 
-                results = (
-                    services
-                    .product_search
-                    .search(
-                        query=(
-                            normalized_query
-                        ),
-                        top_k=int(
-                            top_k
-                        ),
+                    results = (
+                        services
+                        .product_search
+                        .search(
+                            query=(
+                                normalized_query
+                            ),
+                            top_k=int(
+                                top_k
+                            ),
+                        )
+                    )
+
+                    elapsed_ms = (
+                        time.perf_counter()
+                        - start
+                    ) * 1000
+
+                if not isinstance(
+                    results,
+                    pd.DataFrame,
+                ):
+                    raise ValueError(
+                        "خروجی جست‌وجو ساختار جدولی قابل نمایش ندارد."
+                    )
+
+                telemetry = dict(
+                    results.attrs.get(
+                        "telemetry",
+                        {},
                     )
                 )
 
-                elapsed_ms = (
-                    time.perf_counter()
-                    - start
-                ) * 1000
-
-            telemetry = dict(
-                results.attrs.get(
-                    "telemetry",
-                    {},
+                telemetry[
+                    "ui_total_latency_ms"
+                ] = float(
+                    elapsed_ms
                 )
-            )
 
-            telemetry[
-                "ui_total_latency_ms"
-            ] = float(
-                elapsed_ms
-            )
+                st.session_state[
+                    "product_search_result"
+                ] = {
+                    "query": (
+                        normalized_query
+                    ),
+                    "results": (
+                        results
+                        .copy()
+                    ),
+                    "telemetry": (
+                        telemetry
+                    ),
+                }
 
-            st.session_state[
-                "product_search_result"
-            ] = {
-                "query": (
-                    normalized_query
-                ),
-                "results": (
-                    results
-                    .copy()
-                ),
-                "telemetry": (
-                    telemetry
-                ),
-            }
+            except Exception as exc:
+                st.session_state.pop(
+                    "product_search_result",
+                    None,
+                )
+                render_ui_error(
+                    "جست‌وجوی هوشمند نتیجه‌ی قابل نمایش برنگرداند.",
+                    exc,
+                )
 
     state = st.session_state.get(
         "product_search_result"
@@ -804,16 +825,35 @@ def render(
         results_header_html
     )
 
+    rendered_count = 0
+
     for rank, row in enumerate(
         results.itertuples(
             index=False
         ),
         start=1,
     ):
-        _render_result_card(
-            services=services,
-            row=row,
-            rank=rank,
+        try:
+            _render_result_card(
+                services=services,
+                row=row,
+                rank=rank,
+            )
+            rendered_count += 1
+        except Exception as exc:
+            render_ui_error(
+                f"نتیجه‌ی شماره {rank} قابل نمایش نبود و رد شد.",
+                exc,
+                retry_hint=False,
+            )
+
+    if rendered_count == 0:
+        st.session_state.pop(
+            "product_search_result",
+            None,
+        )
+        st.warning(
+            "هیچ‌کدام از نتایج ساختار قابل نمایش نداشتند."
         )
 
     with st.expander(

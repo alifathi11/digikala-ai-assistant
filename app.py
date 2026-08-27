@@ -8,6 +8,7 @@ from src.app.bootstrap import (
     create_app_services,
 )
 from src.app.navigation import Feature
+from src.app.safety import render_ui_error
 from src.app.pages.qa import (
     render as render_qa,
 )
@@ -222,6 +223,12 @@ except Exception as exc:
     st.stop()
 
 
-selected_feature.renderer(
-    services
-)
+try:
+    selected_feature.renderer(
+        services
+    )
+except Exception as exc:
+    render_ui_error(
+        "این بخش نتوانست نتیجه را پردازش یا نمایش دهد.",
+        exc,
+    )
