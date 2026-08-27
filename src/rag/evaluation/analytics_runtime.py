@@ -6,7 +6,7 @@ from ..analytics import (
     AnalyticsRepository,
     AnalyticsService,
 )
-from ..config import load_config
+from ..config import get_model_pricing, load_project_config
 from ..generation import OpenAIJSONGenerator
 from ..pipeline.analytics import (
     ManagerAnalyticsPipeline,
@@ -34,26 +34,16 @@ def load_analytics_evaluation_context(
         project_root
     )
 
-    analytics_config = load_config(
+    config = load_project_config(
         project_root
-        / "configs"
-        / "analytics.yaml"
-    )[
+    )
+
+    analytics_config = config[
         "analytics"
     ]
 
-    qa_config = load_config(
-        project_root
-        / "configs"
-        / "qa.yaml"
-    )
-
-    evaluation_config = load_config(
-        project_root
-        / "configs"
-        / "analytics_evaluation.yaml"
-    )[
-        "analytics_evaluation"
+    evaluation_config = analytics_config[
+        "evaluation"
     ]
 
     repository = (
@@ -104,9 +94,16 @@ def load_analytics_evaluation_context(
         ),
     )
 
-    generation_config = qa_config[
+    generation_config = config[
         "generation"
     ]
+
+    generation_pricing = get_model_pricing(
+        config,
+        generation_config[
+            "model"
+        ],
+    )
 
     answer_generator = (
         OpenAIJSONGenerator(
@@ -116,14 +113,14 @@ def load_analytics_evaluation_context(
                 "model"
             ],
             input_cost_per_million=(
-                generation_config.get(
+                generation_pricing[
                     "input_cost_per_million"
-                )
+                ]
             ),
             output_cost_per_million=(
-                generation_config.get(
+                generation_pricing[
                     "output_cost_per_million"
-                )
+                ]
             ),
         )
     )
@@ -162,33 +159,34 @@ def load_analytics_evaluation_context(
         "judge"
     ]
 
+    judge_model = (
+        judge_config.get(
+            "model"
+        )
+        or generation_config[
+            "model"
+        ]
+    )
+
+    judge_pricing = get_model_pricing(
+        config,
+        judge_model,
+    )
+
     judge_generator = (
         OpenAIJSONGenerator(
             api_key=api_key,
             base_url=base_url,
-            model=(
-                judge_config.get(
-                    "model"
-                )
-                or generation_config[
-                    "model"
+            model=judge_model,
+            input_cost_per_million=(
+                judge_pricing[
+                    "input_cost_per_million"
                 ]
             ),
-            input_cost_per_million=(
-                judge_config.get(
-                    "input_cost_per_million",
-                    generation_config.get(
-                        "input_cost_per_million"
-                    ),
-                )
-            ),
             output_cost_per_million=(
-                judge_config.get(
-                    "output_cost_per_million",
-                    generation_config.get(
-                        "output_cost_per_million"
-                    ),
-                )
+                judge_pricing[
+                    "output_cost_per_million"
+                ]
             ),
         )
     )

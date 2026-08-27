@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import load_config
+from .config import load_project_config
 from .embedding.factory import (
     EmbeddingFactory,
 )
@@ -49,10 +49,8 @@ def load_retrieval_stack(
     )
 
     if rag_config is None:
-        rag_config = load_config(
+        rag_config = load_project_config(
             project_root
-            / "configs"
-            / "rag.yaml"
         )
 
     if faiss_path is None:

@@ -55,62 +55,74 @@ def test_judge_prompt_includes_top_brands_support():
     assert '"product_count": 10' in prompt
 
 
-def test_rebuilt_judge_context_preserves_supporting_tables():
-    context = {
-        "scope": {
-            "filters": {}
+def test_compact_result_preserves_supporting_tables():
+    result = {
+        "context": {
+            "scope": {
+                "filters": {}
+            },
+            "data_quality": {
+                "x": 1
+            },
+            "top_brands": [
+                {
+                    "Brand": "الف"
+                }
+            ],
+            "top_products_by_rating": [
+                {
+                    "id": 1
+                }
+            ],
+            "top_products_by_rating_count": [
+                {
+                    "id": 2
+                }
+            ],
+            "category_comparison": [
+                {
+                    "Category2": "دفتر"
+                }
+            ],
         },
-        "data_quality": {
-            "x": 1
-        },
-        "top_brands": [
-            {
-                "Brand": "الف"
-            }
-        ],
-        "top_products_by_rating": [
-            {
-                "id": 1
-            }
-        ],
-        "top_products_by_rating_count": [
-            {
-                "id": 2
-            }
-        ],
-        "category_comparison": [
-            {
-                "Category2": "دفتر"
-            }
-        ],
+        "facts": {},
+        "telemetry": {},
     }
 
     compact = (
         ManagerAnalyticsEvaluator
-        ._judge_context_from_pipeline_context(
-            context
+        ._compact_result(
+            result
         )
     )
 
     assert compact[
+        "context"
+    ][
         "top_brands"
     ][0][
         "Brand"
     ] == "الف"
 
     assert compact[
+        "context"
+    ][
         "top_products_by_rating"
     ][0][
         "id"
     ] == 1
 
     assert compact[
+        "context"
+    ][
         "top_products_by_rating_count"
     ][0][
         "id"
     ] == 2
 
     assert compact[
+        "context"
+    ][
         "category_comparison"
     ][0][
         "Category2"

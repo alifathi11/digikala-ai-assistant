@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -18,7 +19,8 @@ if str(
     )
 
 from src.rag.config import (
-    load_config,
+    get_model_pricing,
+    load_project_config,
 )
 from src.rag.evaluation.dataset_generation import (
     EVAL_DATASET_SYSTEM_PROMPT,
@@ -33,7 +35,10 @@ from src.rag.utils.text import (
 )
 
 
-load_dotenv()
+load_dotenv(
+    PROJECT_ROOT
+    / ".env"
+)
 
 COMMENTS_PATH = (
     PROJECT_ROOT
@@ -54,6 +59,13 @@ OUTPUT_PATH = (
     / "data"
     / "evaluation"
     / "retrieval_queries.json"
+)
+
+SUMMARY_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "evaluation"
+    / "retrieval_query_generation_summary.json"
 )
 
 NUM_PRODUCTS = 50
@@ -83,7 +95,123 @@ def save_dataset(
         )
 
 
+def save_summary(
+    summary
+):
+    SUMMARY_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with open(
+        SUMMARY_PATH,
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            summary,
+            file,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
+def load_existing_dataset():
+    if not OUTPUT_PATH.exists():
+        return [], set()
+
+    with open(
+        OUTPUT_PATH,
+        "r",
+        encoding="utf-8",
+    ) as file:
+        existing = json.load(
+            file
+        )
+
+    if not isinstance(
+        existing,
+        list,
+    ):
+        raise ValueError(
+            "Existing retrieval benchmark must be a JSON list."
+        )
+
+    product_counts = Counter(
+        int(
+            item["product_id"]
+        )
+        for item in existing
+        if isinstance(
+            item,
+            dict,
+        )
+        and "product_id" in item
+    )
+
+    completed_product_ids = {
+        product_id
+        for product_id, count
+        in product_counts.items()
+        if count
+        == QUERIES_PER_PRODUCT
+    }
+
+    cleaned = [
+        item
+        for item in existing
+        if int(
+            item["product_id"]
+        )
+        in completed_product_ids
+    ]
+
+    if len(
+        cleaned
+    ) != len(
+        existing
+    ):
+        save_dataset(
+            cleaned
+        )
+
+    return (
+        cleaned,
+        completed_product_ids,
+    )
+
+
 def main():
+    if not COMMENTS_PATH.exists():
+        raise FileNotFoundError(
+            "Missing processed comments. Run Notebook 02 first: "
+            f"{COMMENTS_PATH}"
+        )
+
+    if not PRODUCTS_PATH.exists():
+        raise FileNotFoundError(
+            "Missing processed products. Run Notebook 02 first: "
+            f"{PRODUCTS_PATH}"
+        )
+
+    api_key = os.getenv(
+        "METIS_API_KEY"
+    )
+
+    base_url = os.getenv(
+        "METIS_BASE_URL"
+    )
+
+    if not api_key:
+        raise RuntimeError(
+            "METIS_API_KEY is missing from the environment or .env file."
+        )
+
+    if not base_url:
+        raise RuntimeError(
+            "METIS_BASE_URL is missing from the environment or .env file."
+        )
+
     comments = pd.read_parquet(
         COMMENTS_PATH
     )
@@ -163,29 +291,60 @@ def main():
         )
     )
 
-    qa_config = load_config(
+    config = load_project_config(
         PROJECT_ROOT
-        / "configs"
-        / "qa.yaml"
+    )
+
+    generation_config = config[
+        "generation"
+    ]
+
+    pricing = get_model_pricing(
+        config,
+        generation_config[
+            "model"
+        ],
     )
 
     generator = (
         OpenAIJSONGenerator(
-            api_key=os.getenv(
-                "METIS_API_KEY"
+            api_key=api_key,
+            base_url=base_url,
+            model=generation_config[
+                "model"
+            ],
+            input_cost_per_million=(
+                pricing[
+                    "input_cost_per_million"
+                ]
             ),
-            base_url=os.getenv(
-                "METIS_BASE_URL"
+            output_cost_per_million=(
+                pricing[
+                    "output_cost_per_million"
+                ]
             ),
-            model=qa_config[
-                "generation"
-            ]["model"],
         )
     )
 
-    dataset = []
-    successful_products = 0
+    dataset, completed_product_ids = (
+        load_existing_dataset()
+    )
+
+    successful_products = len(
+        completed_product_ids
+    )
+
     api_calls = 0
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    estimated_cost_usd = 0.0
+
+    if successful_products:
+        print(
+            "Resuming retrieval benchmark: "
+            f"{successful_products}/{NUM_PRODUCTS} products already complete."
+        )
 
     for row in (
         eligible_products
@@ -202,6 +361,11 @@ def main():
         product_id = int(
             row.product_id
         )
+
+        if product_id in (
+            completed_product_ids
+        ):
+            continue
 
         product_title = str(
             row.product_title
@@ -269,6 +433,36 @@ def main():
                 )
             )
 
+            prompt_tokens += int(
+                generation.get(
+                    "prompt_tokens",
+                    0,
+                )
+            )
+
+            completion_tokens += int(
+                generation.get(
+                    "completion_tokens",
+                    0,
+                )
+            )
+
+            total_tokens += int(
+                generation.get(
+                    "total_tokens",
+                    0,
+                )
+            )
+
+            call_cost = generation.get(
+                "estimated_cost_usd"
+            )
+
+            if call_cost is not None:
+                estimated_cost_usd += float(
+                    call_cost
+                )
+
             result = generation[
                 "payload"
             ]
@@ -326,10 +520,46 @@ def main():
                 }
             )
 
+        completed_product_ids.add(
+            product_id
+        )
+
         successful_products += 1
 
         save_dataset(
             dataset
+        )
+
+        save_summary(
+            {
+                "model": generation_config[
+                    "model"
+                ],
+                "successful_products": (
+                    successful_products
+                ),
+                "target_products": (
+                    NUM_PRODUCTS
+                ),
+                "samples": len(
+                    dataset
+                ),
+                "api_calls_this_run": (
+                    api_calls
+                ),
+                "prompt_tokens_this_run": (
+                    prompt_tokens
+                ),
+                "completion_tokens_this_run": (
+                    completion_tokens
+                ),
+                "total_tokens_this_run": (
+                    total_tokens
+                ),
+                "estimated_cost_usd_this_run": (
+                    estimated_cost_usd
+                ),
+            }
         )
 
         print(
@@ -337,7 +567,8 @@ def main():
             f"{successful_products}"
             f"/{NUM_PRODUCTS} | "
             f"Samples: {len(dataset)} | "
-            f"API calls: {api_calls}"
+            f"API calls this run: {api_calls} | "
+            f"Cost this run: ${estimated_cost_usd:.4f}"
         )
 
     save_dataset(
@@ -347,6 +578,49 @@ def main():
     expected_samples = (
         NUM_PRODUCTS
         * QUERIES_PER_PRODUCT
+    )
+
+    summary = {
+        "model": generation_config[
+            "model"
+        ],
+        "successful_products": (
+            successful_products
+        ),
+        "target_products": (
+            NUM_PRODUCTS
+        ),
+        "samples": len(
+            dataset
+        ),
+        "expected_samples": (
+            expected_samples
+        ),
+        "api_calls_this_run": (
+            api_calls
+        ),
+        "prompt_tokens_this_run": (
+            prompt_tokens
+        ),
+        "completion_tokens_this_run": (
+            completion_tokens
+        ),
+        "total_tokens_this_run": (
+            total_tokens
+        ),
+        "estimated_cost_usd_this_run": (
+            estimated_cost_usd
+        ),
+        "complete": (
+            len(
+                dataset
+            )
+            == expected_samples
+        ),
+    }
+
+    save_summary(
+        summary
     )
 
     print()
@@ -361,17 +635,37 @@ def main():
         f"{expected_samples}"
     )
     print(
-        f"API calls: "
+        f"API calls this run: "
         f"{api_calls}"
+    )
+    print(
+        "Prompt tokens this run: "
+        f"{prompt_tokens:,}"
+    )
+    print(
+        "Completion tokens this run: "
+        f"{completion_tokens:,}"
+    )
+    print(
+        "Total tokens this run: "
+        f"{total_tokens:,}"
+    )
+    print(
+        "Estimated API cost this run: "
+        f"${estimated_cost_usd:.4f}"
+    )
+    print(
+        "Summary: "
+        f"{SUMMARY_PATH}"
     )
 
     if (
         len(dataset)
         != expected_samples
     ):
-        print(
-            "WARNING: benchmark "
-            "is incomplete."
+        raise RuntimeError(
+            "Retrieval benchmark is incomplete. "
+            "Re-run the script to resume from completed products."
         )
 
 

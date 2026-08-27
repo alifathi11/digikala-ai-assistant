@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..config import load_config
+from ..config import get_model_pricing, load_project_config
 from ..generation import OpenAIJSONGenerator
 from ..pipeline import ProductComparisonPipeline
 from ..runtime import load_retrieval_stack
@@ -27,37 +27,21 @@ def load_comparison_evaluation_context(
         project_root
     )
 
-    rag_config = load_config(
+    config = load_project_config(
         project_root
-        / "configs"
-        / "rag.yaml"
     )
 
-    qa_config = load_config(
-        project_root
-        / "configs"
-        / "qa.yaml"
-    )
-
-    comparison_config = load_config(
-        project_root
-        / "configs"
-        / "comparison.yaml"
-    )[
+    comparison_config = config[
         "comparison"
     ]
 
-    evaluation_config = load_config(
-        project_root
-        / "configs"
-        / "comparison_evaluation.yaml"
-    )[
-        "comparison_evaluation"
+    evaluation_config = comparison_config[
+        "evaluation"
     ]
 
     retrieval = load_retrieval_stack(
         project_root=project_root,
-        rag_config=rag_config,
+        rag_config=config,
     )
 
     product_documents = pd.read_parquet(
@@ -67,9 +51,16 @@ def load_comparison_evaluation_context(
         / "products_search.parquet"
     )
 
-    generation_config = qa_config[
+    generation_config = config[
         "generation"
     ]
+
+    generation_pricing = get_model_pricing(
+        config,
+        generation_config[
+            "model"
+        ],
+    )
 
     comparison_generator = OpenAIJSONGenerator(
         api_key=api_key,
@@ -78,14 +69,14 @@ def load_comparison_evaluation_context(
             "model"
         ],
         input_cost_per_million=(
-            generation_config.get(
+            generation_pricing[
                 "input_cost_per_million"
-            )
+            ]
         ),
         output_cost_per_million=(
-            generation_config.get(
+            generation_pricing[
                 "output_cost_per_million"
-            )
+            ]
         ),
     )
 
@@ -93,32 +84,33 @@ def load_comparison_evaluation_context(
         "judge"
     ]
 
+    judge_model = (
+        judge_config.get(
+            "model"
+        )
+        or generation_config[
+            "model"
+        ]
+    )
+
+    judge_pricing = get_model_pricing(
+        config,
+        judge_model,
+    )
+
     judge_generator = OpenAIJSONGenerator(
         api_key=api_key,
         base_url=base_url,
-        model=(
-            judge_config.get(
-                "model"
-            )
-            or generation_config[
-                "model"
+        model=judge_model,
+        input_cost_per_million=(
+            judge_pricing[
+                "input_cost_per_million"
             ]
         ),
-        input_cost_per_million=(
-            judge_config.get(
-                "input_cost_per_million",
-                generation_config.get(
-                    "input_cost_per_million"
-                ),
-            )
-        ),
         output_cost_per_million=(
-            judge_config.get(
-                "output_cost_per_million",
-                generation_config.get(
-                    "output_cost_per_million"
-                ),
-            )
+            judge_pricing[
+                "output_cost_per_million"
+            ]
         ),
     )
 

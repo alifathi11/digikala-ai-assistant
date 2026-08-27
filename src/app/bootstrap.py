@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.rag.config import (
-    load_config,
+    get_model_pricing,
+    load_project_config,
 )
 from src.rag.generation import (
     OpenAIJSONGenerator,
@@ -47,15 +48,10 @@ def _load_product_search(
     project_root,
     retrieval,
     generator,
+    config,
 ):
-    search_config = load_config(
-        project_root
-        / "configs"
-        / "product_search.yaml"
-    )
-
     product_search_config = (
-        search_config[
+        config[
             "product_search"
         ]
     )
@@ -225,14 +221,13 @@ def _load_comparison(
     retrieval,
     generator,
     product_search,
+    config,
 ):
-    comparison_config = load_config(
-        project_root
-        / "configs"
-        / "comparison.yaml"
-    )[
-        "comparison"
-    ]
+    comparison_config = (
+        config[
+            "comparison"
+        ]
+    )
 
     return ProductComparisonPipeline(
         product_documents=(
@@ -276,24 +271,23 @@ def _load_comparison(
 def _load_analytics(
     project_root,
     generator,
+    config,
 ):
-    config = load_config(
-        project_root
-        / "configs"
-        / "analytics.yaml"
-    )[
-        "analytics"
-    ]
+    analytics_config = (
+        config[
+            "analytics"
+        ]
+    )
 
-    audit_config = config[
+    audit_config = analytics_config[
         "audit"
     ]
 
-    aggregation_config = config[
+    aggregation_config = analytics_config[
         "aggregation"
     ]
 
-    manager_config = config[
+    manager_config = analytics_config[
         "manager_qa"
     ]
 
@@ -373,16 +367,8 @@ def create_app_services(
         project_root
     )
 
-    rag_config = load_config(
+    config = load_project_config(
         project_root
-        / "configs"
-        / "rag.yaml"
-    )
-
-    qa_config = load_config(
-        project_root
-        / "configs"
-        / "qa.yaml"
     )
 
     retrieval = (
@@ -391,15 +377,22 @@ def create_app_services(
                 project_root
             ),
             rag_config=(
-                rag_config
+                config
             ),
         )
     )
 
     generation_config = (
-        qa_config[
+        config[
             "generation"
         ]
+    )
+
+    generation_pricing = get_model_pricing(
+        config,
+        generation_config[
+            "model"
+        ],
     )
 
     generator = (
@@ -412,20 +405,20 @@ def create_app_services(
                 ]
             ),
             input_cost_per_million=(
-                generation_config.get(
+                generation_pricing[
                     "input_cost_per_million"
-                )
+                ]
             ),
             output_cost_per_million=(
-                generation_config.get(
+                generation_pricing[
                     "output_cost_per_million"
-                )
+                ]
             ),
         )
     )
 
     qa_config_values = (
-        qa_config[
+        config[
             "qa"
         ]
     )
@@ -480,6 +473,7 @@ def create_app_services(
             ),
             retrieval=retrieval,
             generator=generator,
+            config=config,
         )
     )
 
@@ -493,6 +487,7 @@ def create_app_services(
             product_search=(
                 product_search
             ),
+            config=config,
         )
     )
 
@@ -502,6 +497,7 @@ def create_app_services(
                 project_root
             ),
             generator=generator,
+            config=config,
         )
     )
 

@@ -1,89 +1,189 @@
 # Digikala AI Assistant
 
-A Persian ecommerce assistant built on Digikala product metadata and real user comments.
+A Persian ecommerce AI assistant built on Digikala product metadata and real user reviews. The project combines deterministic retrieval/analytics with grounded LLM generation and explicit evaluation.
 
-## Implemented features
+## Final features
 
-- **Grounded Q&A** over product reviews with evidence IDs and hard citation validation.
-- **Product Search / Discovery** using product FAISS + Tantivy retrieval, RRF + lexical/category grounding, candidate-scoped review evidence, and grounded LLM reranking.
-- **Retrieval, QA, and Product Search evaluation** with reproducible notebooks.
-- **Streamlit RTL UI** for Q&A and Product Search.
+### 1. Grounded Product Q&A
 
-Product Comparison and Manager Analytics are the next phases and remain disabled in the UI.
+- Hybrid comment retrieval with **Tantivy BM25 + FAISS embeddings**.
+- Product-scoped question answering over retrieved reviews.
+- Structured answers with evidence IDs, confidence, and insufficient-evidence handling.
+- Hard citation validation, repair retry, and deterministic sanitization.
+
+### 2. Product Search / Discovery
+
+- Canonical product-level metadata index.
+- Product FAISS + Tantivy retrieval.
+- Weighted RRF plus title/category lexical grounding and exact-brand boost.
+- Candidate-scoped review evidence retrieval.
+- Grounded LLM reranking with `support / mixed / contradict / none` evidence status.
+- Frozen production ranking policy: **`tiered_30_70`**.
+
+### 3. Product Comparison
+
+- Compare two or three selected products.
+- Direct metadata plus separately retrieved review evidence for every product.
+- Criterion-by-criterion grounded comparison.
+- Strict citation ownership validation so evidence cannot be assigned to the wrong product.
+- Deterministic winner checks for metadata-only criteria and calibrated no-winner behavior.
+
+### 4. Manager Analytics
+
+- Canonical product-level aggregation with batched review statistics.
+- Category overview and category comparison.
+- Price, rating, rating coverage, review coverage, brand, and engagement analytics.
+- Data-quality guards for limited brand coverage, sparse historical price, and truncated review-volume signals.
+- Manager Q&A where the LLM cannot invent numbers: it can only reference verified metric placeholders rendered from Python-computed facts.
+
+## Streamlit UI
+
+Run:
+
+```bash
+streamlit run app.py
+```
+
+The UI includes:
+
+- Grounded Q&A
+- Product Search
+- Product Comparison
+- Manager Analytics
 
 ## Architecture
 
 ```text
-User
- │
- ▼
-Streamlit UI
- │
- ├─────────────────────────────┐
- │                             │
- ▼                             ▼
-Grounded QA               Product Search
- │                             │
- ▼                             ▼
-Comment Hybrid RAG        Product metadata retrieval
-FAISS + Tantivy           FAISS + Tantivy + RRF
- │                             │
- ▼                             ▼
-Retrieved reviews         lexical/category grounding
- │                             │
- ▼                             ▼
-Grounded LLM              top-12 candidate shortlist
- │                             │
- ▼                             ▼
-Citation validation       candidate-scoped review retrieval
-                               │
-                               ▼
-                         Grounded LLM reranker
-                               │
-                               ▼
-                         tiered 30/70 ranking
+Raw Digikala data
+        |
+        v
+Preprocessing + canonicalization
+        |
+        +-------------------------+
+        |                         |
+        v                         v
+Comment indexes              Product indexes
+FAISS + Tantivy              FAISS + Tantivy
+        |                         |
+        v                         v
+Grounded QA                 Product Search
+                                  |
+                                  v
+                          Grounded LLM reranker
+                                  |
+                     +------------+------------+
+                     |                         |
+                     v                         v
+             Product Comparison          Manager Analytics
+             metadata + reviews          deterministic metrics
+                     |                         |
+                     v                         v
+             citation ownership        verified metric placeholders
 ```
 
-Reusable logic lives under `src/`. Notebooks are orchestration/evaluation only; reusable functions and classes should not be implemented inside notebooks.
+Reusable logic is implemented under `src/`. Notebooks contain only orchestration, evaluation, and short English notes.
 
-## Validated baselines
+## Central configuration
 
-### Comment retrieval
+The project has a single configuration file:
 
-| Retriever | Recall@5 | MRR@5 | nDCG@5 | Mean latency |
-|---|---:|---:|---:|---:|
-| BM25 / Tantivy | 0.8400 | 0.7203 | 0.7334 | 83.6 ms |
-| Embedding / FAISS | 0.8389 | 0.6943 | 0.7082 | 90.9 ms |
-| Hybrid | **0.8611** | **0.7533** | **0.7558** | 258.1 ms |
+```text
+configs/project.yaml
+```
 
-### Grounded QA
+It contains retrieval, generation, Product Search, Product Comparison, Manager Analytics, benchmark cases, evaluation settings, and model pricing.
 
-- Overall LLM-as-a-Judge: **4.93 / 5**
-- Citation validity: **100%**
-- Evidence precision: **89.2%**
-- Evidence recall: **90.6%**
-- Evidence F1: **86.9%**
-- Average latency: **2.75 s**
-- P95 latency: **3.68 s**
+### Token pricing
 
-### Product Search
-
-Held-out TEST results on the 30-query LLM-assisted benchmark:
-
-| Metric | Metadata only | LLM-reranked |
+| Model | Input / 1M tokens | Output / 1M tokens |
 |---|---:|---:|
-| HitRate@1 | 0.400 | **0.700** |
-| MRR@10 | 0.484 | **0.700** |
-| nDCG@10 | 0.473 | **0.638** |
-| Precision@5 | 0.340 | **0.600** |
+| `gpt-5.6-terra` | **$1** | **$6** |
+| `gpt-5.6-sol` | **$5** | **$30** |
 
-All tested LLM-based fusion policies tied. Production keeps **tiered 30% metadata / 70% LLM** so metadata remains a deterministic tie-breaker.
+Current usage:
 
-Product Search evaluation latency: **12.10 s mean**, **19.06 s P95**, about **2,564 reranker tokens/query**.
+- Production generation/reranking: `gpt-5.6-terra`
+- QA qualitative judge: `gpt-5.6-sol`
+- Product Search relevance teacher, Product Comparison judge, and Manager Analytics judge: `gpt-5.6-terra`
 
-> Product Search qrels are LLM-assisted proxy labels, not independent human gold. Keep this limitation explicit in final reporting.
+Evaluation notebooks record prompt/completion tokens and estimated USD cost using these prices.
 
-See `reports/baseline_metrics.md` for the full metric tables.
+## Final evaluation summary
+
+| Section | Main held-out result | Grounding / deterministic result |
+|---|---|---|
+| Grounded QA | **4.93 / 5** overall | **100% citation validity** |
+| Product Search | **0.638 nDCG@10**, **0.70 HitRate@1** on TEST | LLM reranking vs 0.473 nDCG@10 metadata-only |
+| Product Comparison | **4.88 / 5** on TEST | **100% citation ownership and deterministic winner accuracy** |
+| Manager Analytics | **4.995 / 5** on TEST | **100% numeric faithfulness and fact accuracy** |
+
+Detailed validated results are stored in `reports/`:
+
+```text
+reports/
+├── 01_grounded_qa_evaluation.md
+├── 02_product_search_evaluation.md
+├── 03_product_comparison_evaluation.md
+└── 04_manager_analytics_evaluation.md
+```
+
+Important evaluation limitations are documented inside each report. Product Search qrels and qualitative judges are LLM-assisted proxies rather than independent human gold.
+
+## Final notebooks
+
+Run notebooks in order:
+
+```text
+01_data_analysis.ipynb
+02_data_preprocessing.ipynb
+03_build_comment_embedding_index.ipynb
+04_build_comment_bm25_index.ipynb
+05_retrieval_evaluation.ipynb
+06_grounded_qa_evaluation.ipynb
+07_build_product_search_indexes.ipynb
+08_build_product_search_qrels.ipynb
+09_product_search_evaluation.ipynb
+10_product_comparison_evaluation.ipynb
+11_manager_analytics_data_audit.ipynb
+12_manager_analytics_evaluation.ipynb
+```
+
+Notes:
+
+- Notebook 08 keeps qrel generation resumable because teacher labeling is the largest Product Search evaluation workload.
+- Notebook 09 deliberately re-runs the 30 Product Search reranker calls so cost telemetry is refreshed.
+- Notebooks 06, 10, and 12 re-run their evaluation calls so the newly configured token costs are populated.
+- The old Analytics `18b` repair notebook is removed; its judge-context correction is integrated into the final evaluator.
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Set:
+
+```text
+METIS_API_KEY=...
+METIS_BASE_URL=...
+```
+
+Expected local data layout:
+
+```text
+data/
+├── raw/
+│   ├── digikala-products.csv
+│   └── digikala-comments.csv
+├── processed/
+├── indexes/
+└── evaluation/
+```
+
+Generated data, indexes, checkpoints, local `.env`, Python caches, and Jupyter checkpoints are excluded by `.gitignore`.
 
 ## Project structure
 
@@ -91,78 +191,27 @@ See `reports/baseline_metrics.md` for the full metric tables.
 .
 ├── app.py
 ├── configs/
-│   ├── rag.yaml
-│   ├── qa.yaml
-│   ├── qa_evaluation.yaml
-│   ├── product_search.yaml
-│   ├── product_search_eval_queries.yaml
-│   └── product_search_evaluation.yaml
+│   └── project.yaml
 ├── notebooks/
-│   ├── 01_data_analysis.ipynb
-│   ├── 02_data_preprocessing.ipynb
-│   ├── 03_build_embedding_index.ipynb
-│   ├── 04_build_bm25_index.ipynb
-│   ├── 05_retrieval_evaluation.ipynb
-│   ├── 06_grounded_qa_demo.ipynb
-│   ├── 07_qa_evaluation.ipynb
-│   ├── 08_product_search_data_audit.ipynb
-│   ├── 09_build_product_search_indexes.ipynb
-│   ├── 10_product_search_smoke_test.ipynb
-│   ├── 11_product_search_metadata_debug.ipynb
-│   ├── 12_product_search_build_qrels.ipynb
-│   └── 13_product_search_evaluation.ipynb
+│   └── 01 ... 12
 ├── reports/
+│   └── four final evaluation reports
 ├── scripts/
+│   └── generate_eval_dataset.py
 ├── src/
 │   ├── app/
 │   └── rag/
 ├── tests/
-├── requirements.txt
-├── requirements-dev.txt
-└── .env.example
+├── .env.example
+├── .gitignore
+├── pytest.ini
+└── requirements.txt
 ```
 
-## Setup
+## Testing
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env
+pytest -q
 ```
 
-Set `METIS_API_KEY` and `METIS_BASE_URL` in `.env`.
-
-Expected local data layout:
-
-```text
-data/
-├── raw/
-├── processed/
-├── indexes/
-└── evaluation/
-```
-
-## Rebuild / evaluation order
-
-Run notebooks in numeric order:
-
-1. `01`–`04`: preprocessing and comment indexes
-2. `05`: retrieval evaluation
-3. `06`–`07`: grounded QA and QA evaluation
-4. `08`–`09`: Product Search audit and indexes
-5. `10`–`11`: Product Search smoke/debug
-6. `12`: Product Search qrels
-7. `13`: Product Search held-out evaluation
-
-Product Search qrel/evaluation notebooks use resume/cache to avoid repeating completed LLM calls.
-
-## Run the UI
-
-```bash
-streamlit run app.py
-```
-
-## Project hygiene
-
-Generated caches, Jupyter checkpoints, local data/indexes and `.env` are git-ignored. The abandoned BERT/NLI stance-calibration experiment is not part of the active project.
-
-See `CLEANUP.md` for the cleanup performed before the Product Comparison phase.
+The final scope ends with Manager Analytics. A `status_recommendation` classifier is not part of this project.
