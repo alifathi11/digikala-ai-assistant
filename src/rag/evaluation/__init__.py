@@ -38,3 +38,27 @@ __all__ += [
     "comparison_failure_summary",
     "export_manual_review_csv",
 ]
+
+
+# Manager Analytics evaluation
+from .analytics_dataset import (
+    AnalyticsEvaluationDataset,
+)
+from .analytics_judge import (
+    ManagerAnalyticsJudge,
+)
+from .analytics_evaluator import (
+    ManagerAnalyticsEvaluator,
+    analytics_failure_summary,
+    build_analytics_report,
+    export_analytics_manual_review,
+)
+
+__all__ += [
+    "AnalyticsEvaluationDataset",
+    "ManagerAnalyticsJudge",
+    "ManagerAnalyticsEvaluator",
+    "analytics_failure_summary",
+    "build_analytics_report",
+    "export_analytics_manual_review",
+]

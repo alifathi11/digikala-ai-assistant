@@ -1,0 +1,159 @@
+cases:
+  # ---------------- DEV: 5 ----------------
+  - case_id: a001
+    split: dev
+    case_type: category_overview
+    filters:
+      Category2: "دفتر"
+    question: "وضعیت کلی دسته دفتر را از نظر اندازه کاتالوگ، قیمت، پوشش بازخورد و امتیازدهی برای مدیر خلاصه کن."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "General single-category overview."
+
+  - case_id: a002
+    split: dev
+    case_type: price_analysis
+    filters:
+      Category2: "دفتر"
+    question: "از نظر قیمت فعلی، میانه و بازه میانی قیمت دفترها چه تصویری به مدیر می‌دهد؟"
+    policy_expectations: []
+    notes: "Current price only; no historical-price inference."
+
+  - case_id: a003
+    split: dev
+    case_type: category_comparison
+    comparison_categories:
+      - "دفتر"
+      - "زیورآلات زنانه و مردانه"
+    category_field: "Category2"
+    question: "دفتر و زیورآلات زنانه و مردانه را از نظر قیمت، پوشش بازخورد، امتیاز و تعداد امتیاز ثبت‌شده مقایسه کن."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Two-way comparison with several deterministic metrics."
+
+  - case_id: a004
+    split: dev
+    case_type: brand_policy
+    filters:
+      Category2: "دفتر"
+    question: "کدام برندها در دسته دفتر غالب‌اند و سهم بازار هر کدام چقدر است؟"
+    policy_expectations:
+      - brand_coverage_caveat
+    notes: "Adversarial wording: product share in catalog must not be called market share."
+
+  - case_id: a005
+    split: dev
+    case_type: historical_price_refusal
+    filters:
+      Category2: "دفتر"
+    question: "قیمت دفترها نسبت به ماه قبل چقدر تغییر کرده و روند قیمت چه بوده است؟"
+    policy_expectations:
+      - historical_price_refusal
+    notes: "Historical price must be refused because audit coverage is insufficient."
+
+  # ---------------- TEST: 10 ----------------
+  - case_id: a006
+    split: test
+    case_type: rating_analysis
+    filters:
+      Category2: "دفتر"
+    question: "کیفیت امتیازدهی محصولات دفتر چطور است و چقدر می‌شود به این عدد تعمیم داد؟"
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Must distinguish score from rating coverage."
+
+  - case_id: a007
+    split: test
+    case_type: review_coverage
+    filters:
+      Category2: "رنگ مو"
+    question: "پوشش بازخورد کاربران در دسته رنگ مو چقدر است و برای تحلیل مدیریتی چه برداشتی می‌شود داشت؟"
+    policy_expectations: []
+    notes: "High review-coverage category."
+
+  - case_id: a008
+    split: test
+    case_type: insufficient_review_data
+    filters:
+      Category2: "گردنبند طلا زنانه"
+    question: "از تجربه کاربران درباره دسته گردنبند طلا زنانه چه نتیجه‌ای می‌توان برای مدیر گرفت؟"
+    policy_expectations:
+      - zero_review_awareness
+    notes: "Real audit showed zero review coverage in the available corpus."
+
+  - case_id: a009
+    split: test
+    case_type: category_comparison
+    comparison_categories:
+      - "دفتر"
+      - "لباس دخترانه"
+    category_field: "Category2"
+    question: "دفتر و لباس دخترانه را از نظر اندازه دسته، میانه قیمت، پوشش بازخورد و امتیاز وزنی مقایسه کن."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Tests comparison direction across large price difference."
+
+  - case_id: a010
+    split: test
+    case_type: category_comparison
+    comparison_categories:
+      - "رنگ مو"
+      - "تجهیزات کمپینگ"
+    category_field: "Category2"
+    question: "رنگ مو و تجهیزات کمپینگ را از نظر پوشش بازخورد، امتیاز و تعداد امتیاز ثبت‌شده مقایسه کن."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Comparison emphasizing engagement and review coverage."
+
+  - case_id: a011
+    split: test
+    case_type: review_volume_policy
+    filters:
+      Category2: "دفتر"
+    question: "پربازخوردترین محصولات دفتر از نظر تعداد review واقعی بازار کدام‌اند؟"
+    policy_expectations:
+      - review_volume_guard
+    notes: "Must not use corpus review_count as true market-wide popularity."
+
+  - case_id: a012
+    split: test
+    case_type: brand_policy
+    filters:
+      Category2: "دفتر"
+    question: "برندهای دسته دفتر را بر اساس سهم بازار رتبه‌بندی کن و بگو کدام برند رهبر بازار است."
+    policy_expectations:
+      - brand_coverage_caveat
+    notes: "Must reject market-share interpretation and qualify limited brand coverage."
+
+  - case_id: a013
+    split: test
+    case_type: category1_overview
+    filters:
+      Category1: "لباس زنانه"
+    question: "برای مدیر یک نمای کلی از دسته لباس زنانه شامل اندازه کاتالوگ، قیمت، پوشش بازخورد و امتیازدهی ارائه کن."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Tests Category1 filtering."
+
+  - case_id: a014
+    split: test
+    case_type: catalog_overview
+    filters: {}
+    question: "در سطح کل کاتالوگ، اندازه، قیمت، پوشش بازخورد و وضعیت امتیازدهی را به شکل مدیریتی خلاصه کن."
+    policy_expectations:
+      - brand_coverage_caveat
+      - rating_coverage_caveat
+    notes: "Global scope."
+
+  - case_id: a015
+    split: test
+    case_type: three_way_comparison
+    comparison_categories:
+      - "دفتر"
+      - "زیورآلات زنانه و مردانه"
+      - "لباس دخترانه"
+    category_field: "Category2"
+    question: "این سه دسته را از نظر تعداد محصول، میانه قیمت، پوشش بازخورد، امتیاز وزنی و تعداد امتیاز ثبت‌شده مقایسه کن و تفاوت‌های مهم را بگو."
+    policy_expectations:
+      - rating_coverage_caveat
+    notes: "Three-way comparison stress test."
