@@ -148,13 +148,6 @@ Run notebooks in order:
 12_manager_analytics_evaluation.ipynb
 ```
 
-Notes:
-
-- Notebook 08 keeps qrel generation resumable because teacher labeling is the largest Product Search evaluation workload.
-- Notebook 09 deliberately re-runs the 30 Product Search reranker calls so cost telemetry is refreshed.
-- Notebooks 06, 10, and 12 re-run their evaluation calls so the newly configured token costs are populated.
-- The old Analytics `18b` repair notebook is removed; its judge-context correction is integrated into the final evaluator.
-
 ## Setup
 
 ```bash
@@ -182,8 +175,6 @@ data/
 ├── indexes/
 └── evaluation/
 ```
-
-Generated data, indexes, checkpoints, local `.env`, Python caches, and Jupyter checkpoints are excluded by `.gitignore`.
 
 ## Project structure
 
@@ -213,5 +204,3 @@ Generated data, indexes, checkpoints, local `.env`, Python caches, and Jupyter c
 ```bash
 pytest -q
 ```
-
-The final scope ends with Manager Analytics. A `status_recommendation` classifier is not part of this project.
