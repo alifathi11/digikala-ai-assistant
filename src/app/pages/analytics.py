@@ -272,6 +272,295 @@ def _clean_table(
     )
 
 
+
+def _safe_bar_chart(
+    frame,
+    label_column,
+    value_column,
+    title,
+):
+    """
+    Render a deterministic Streamlit bar chart without affecting the page
+    when chart data is empty or malformed.
+    """
+    try:
+        if (
+            not isinstance(
+                frame,
+                pd.DataFrame,
+            )
+            or len(frame) == 0
+            or label_column
+            not in frame.columns
+            or value_column
+            not in frame.columns
+        ):
+            st.info(
+                "داده‌ی کافی برای این نمودار وجود ندارد."
+            )
+            return
+
+        chart = frame[
+            [
+                label_column,
+                value_column,
+            ]
+        ].copy()
+
+        chart[
+            label_column
+        ] = (
+            chart[
+                label_column
+            ]
+            .fillna("—")
+            .astype(str)
+        )
+
+        chart[
+            value_column
+        ] = pd.to_numeric(
+            chart[
+                value_column
+            ],
+            errors="coerce",
+        )
+
+        chart = chart.dropna(
+            subset=[
+                value_column
+            ]
+        )
+
+        if len(chart) == 0:
+            st.info(
+                "داده‌ی کافی برای این نمودار وجود ندارد."
+            )
+            return
+
+        st.markdown(
+            f"**{title}**"
+        )
+
+        st.bar_chart(
+            chart.set_index(
+                label_column
+            )[
+                [
+                    value_column
+                ]
+            ],
+            use_container_width=True,
+        )
+
+    except Exception as exc:
+        render_ui_error(
+            "نمایش نمودار با خطا مواجه شد.",
+            exc,
+            retry_hint=False,
+        )
+
+
+def _render_overview_charts(
+    analytics,
+    filters,
+    overview,
+):
+    st.markdown(
+        "### نمودارها"
+    )
+
+    left, right = st.columns(
+        2
+    )
+
+    with left:
+        try:
+            brands = (
+                analytics
+                .top_brands(
+                    filters=filters,
+                    top_n=8,
+                    include_generic=False,
+                )
+            )
+
+            _safe_bar_chart(
+                frame=brands,
+                label_column="Brand",
+                value_column="product_count",
+                title="تعداد محصول برندهای برتر",
+            )
+
+        except Exception as exc:
+            render_ui_error(
+                "نمودار برندها قابل محاسبه نبود.",
+                exc,
+                retry_hint=False,
+            )
+
+    with right:
+        coverage = pd.DataFrame(
+            {
+                "شاخص": [
+                    "قیمت",
+                    "Review",
+                    "Rating",
+                ],
+                "پوشش (%)": [
+                    (
+                        float(
+                            overview[
+                                "price"
+                            ][
+                                "coverage"
+                            ]
+                        )
+                        * 100
+                    ),
+                    (
+                        float(
+                            overview[
+                                "review_coverage"
+                            ]
+                        )
+                        * 100
+                    ),
+                    (
+                        float(
+                            overview[
+                                "product_rating"
+                            ][
+                                "rated_product_coverage"
+                            ]
+                        )
+                        * 100
+                    ),
+                ],
+            }
+        )
+
+        _safe_bar_chart(
+            frame=coverage,
+            label_column="شاخص",
+            value_column="پوشش (%)",
+            title="پوشش داده",
+        )
+
+    price_summary = pd.DataFrame(
+        {
+            "شاخص": [
+                "چارک اول",
+                "میانه",
+                "چارک سوم",
+            ],
+            "قیمت": [
+                overview[
+                    "price"
+                ][
+                    "p25"
+                ],
+                overview[
+                    "price"
+                ][
+                    "median"
+                ],
+                overview[
+                    "price"
+                ][
+                    "p75"
+                ],
+            ],
+        }
+    )
+
+    _safe_bar_chart(
+        frame=price_summary,
+        label_column="شاخص",
+        value_column="قیمت",
+        title="بازه میانی قیمت",
+    )
+
+
+def _render_comparison_charts(
+    comparison,
+):
+    if (
+        not isinstance(
+            comparison,
+            pd.DataFrame,
+        )
+        or len(
+            comparison
+        )
+        == 0
+    ):
+        return
+
+    st.markdown(
+        "### نمودارهای مقایسه"
+    )
+
+    left, right = st.columns(
+        2
+    )
+
+    with left:
+        _safe_bar_chart(
+            frame=comparison,
+            label_column="Category2",
+            value_column="product_count",
+            title="تعداد محصول",
+        )
+
+    with right:
+        _safe_bar_chart(
+            frame=comparison,
+            label_column="Category2",
+            value_column="median_price",
+            title="میانه قیمت",
+        )
+
+    coverage = comparison[
+        [
+            "Category2",
+            "review_coverage",
+        ]
+    ].copy()
+
+    coverage[
+        "review_coverage"
+    ] = (
+        pd.to_numeric(
+            coverage[
+                "review_coverage"
+            ],
+            errors="coerce",
+        )
+        * 100
+    )
+
+    left, right = st.columns(
+        2
+    )
+
+    with left:
+        _safe_bar_chart(
+            frame=coverage,
+            label_column="Category2",
+            value_column="review_coverage",
+            title="پوشش Review (%)",
+        )
+
+    with right:
+        _safe_bar_chart(
+            frame=comparison,
+            label_column="Category2",
+            value_column="weighted_product_rating",
+            title="امتیاز وزنی محصول /100",
+        )
+
+
 def _render_tables(
     analytics,
     filters,
@@ -763,6 +1052,12 @@ def render(
             overview
         )
 
+        _render_overview_charts(
+            analytics=analytics,
+            filters=filters,
+            overview=overview,
+        )
+
         _render_tables(
             analytics=analytics,
             filters=filters,
@@ -926,6 +1221,10 @@ def render(
         st.caption(
             "Brand coverage محدود است و review_count برای رتبه‌بندی "
             "حجم واقعی بازار استفاده نمی‌شود."
+        )
+
+        _render_comparison_charts(
+            comparison
         )
 
         question = st.text_area(
